@@ -61,11 +61,17 @@ def init_tscout(tscout_dir):
     os.chdir(tscout_dir)
     Popen(args=["rm -f *.csv"], shell=True).wait()
     Popen(args=["sudo pwd"], shell=True).wait()
-    Popen(args=["sudo python3 tscout.py `pgrep -ox postgres` &"], shell=True).wait()
+    tscout_proc = Popen(
+        args=["sudo python3 tscout.py `pgrep -ox postgres` &"], shell=True
+    )
+    time.sleep(5)
+    return tscout_proc
 
 
-def init_benchbase(build_benchbase, benchbase_dir):
+def init_benchbase(build_benchbase, benchbase_dir, config_dir):
     os.chdir(benchbase_dir)
+
+    config = config_dir / "config/postgres/sample_tpcc_config.xml"
 
     benchbase_snapshot_path = benchbase_dir / "target" / "benchbase-2021-SNAPSHOT.zip"
     benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
@@ -81,7 +87,9 @@ def init_benchbase(build_benchbase, benchbase_dir):
     os.chdir(benchbase_snapshot_dir)
     print(os.getcwd())
     print("Starting Benchbase")
-    benchbase_cmd = "java -jar benchbase.jar -b tpcc -c config/postgres/sample_tpcc_config.xml --create=true --load=true"
+    benchbase_cmd = (
+        "java -jar benchbase.jar -b tpcc -c {config} --create=true --load=true"
+    )
     Popen(
         args=[benchbase_cmd],
         shell=True,
@@ -105,6 +113,7 @@ def shutdown(pg_proc):
     # Shutdown postgres, tscout, and benchbase
     print("Shutting down PG process and closing logfile")
     pg_proc.kill()
+    tscout_proc.kill()
 
 
 if __name__ == "__main__":
@@ -117,15 +126,17 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    results_dir = Path.home() / "cmudb" / "modeling" / "results"
 
     pg_dir = Path.home() / "postgres"
-    pg_proc = init_pg(args.build_pg, pg_dir, results_dir)
-
-    tscout_dir = tscout_dir = pg_dir / "cmudb" / "tscout"
-    init_tscout(tscout_dir)
-
+    cmudb_dir = pg_dir / "cmudb"
+    tscout_dir = cmudb_dir / "tscout"
+    config_dir = cmudb_dir / "modeling" / "benchbase_configs"
+    results_dir = cmudb_dir / "modeling" / "results"
     benchbase_dir = benchbase_dir = Path.home() / "benchbase"
-    init_benchbase(args.build_benchbase, benchbase_dir)
 
-    shutdown(pg_proc)
+    pg_proc = init_pg(args.build_pg, pg_dir, results_dir)
+    tscout_proc = init_tscout(tscout_dir)
+    init_benchbase(args.build_benchbase, benchbase_dir, config_dir)
+
+    pg_proc.kill()
+    # shutdown(pg_proc, tscout_proc)
