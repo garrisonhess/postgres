@@ -270,8 +270,8 @@ def processor(ou, buffered_strings, run_id):
     setproctitle.setproctitle("{} Processor".format(ou.name()))
 
     # Open output file, with the name based on the OU.
-    Path(f"./{run_id}").mkdir(exist_ok=True)
-    file = open(f"./{run_id}/{ou.name()}.csv", "w")
+    Path(f"./results/{run_id}").mkdir(parents=True, exist_ok=True)
+    file = open(f"./results/{run_id}/{ou.name()}.csv", "w")
 
     # Write the OU's feature columns for CSV header,
     # with an additional separator before resource metrics columns.
