@@ -21,7 +21,6 @@ def init_pg(build_pg, pg_dir, results_dir):
     Popen(args=["mkdir -p data"], shell=True).wait()
     Popen(args=["./build/bin/initdb -D data"], shell=True).wait()
 
-    # pg_logfile_path = results_dir / "pg_runner_logs.txt"
     print(f"Starting Postgres")
     pg_proc = Popen(
         args=["./build/bin/postgres -D data -W 2 &"],
