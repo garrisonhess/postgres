@@ -39,10 +39,10 @@ static bool cpu_start(struct resource_metrics *const metrics) {
   }
   metrics->cache_misses = NormalizedPerfEventValue(&perf_event_value);
 
-  if (ref_cpu_cycles.perf_counter_value(cpu_k, &perf_event_value, sizeof(perf_event_value)) < 0) {
-    return false;
-  }
-  metrics->ref_cpu_cycles = NormalizedPerfEventValue(&perf_event_value);
+  // if (ref_cpu_cycles.perf_counter_value(cpu_k, &perf_event_value, sizeof(perf_event_value)) < 0) {
+  //   return false;
+  // }
+  // metrics->ref_cpu_cycles = NormalizedPerfEventValue(&perf_event_value);
 
   return true;
 }
@@ -101,14 +101,14 @@ static bool cpu_end(struct resource_metrics *const metrics) {
   }
   metrics->cache_misses = end_value - metrics->cache_misses;
 
-  if (ref_cpu_cycles.perf_counter_value(cpu_k, &perf_event_value, sizeof(perf_event_value)) < 0) {
-    return false;
-  }
-  end_value = NormalizedPerfEventValue(&perf_event_value);
-  if (metrics->ref_cpu_cycles > end_value) {
-    return false;
-  }
-  metrics->ref_cpu_cycles = end_value - metrics->ref_cpu_cycles;
+  // if (ref_cpu_cycles.perf_counter_value(cpu_k, &perf_event_value, sizeof(perf_event_value)) < 0) {
+  //   return false;
+  // }
+  // end_value = NormalizedPerfEventValue(&perf_event_value);
+  // if (metrics->ref_cpu_cycles > end_value) {
+  //   return false;
+  // }
+  // metrics->ref_cpu_cycles = end_value - metrics->ref_cpu_cycles;
 
   metrics->cpu_id = cpu_k;
 

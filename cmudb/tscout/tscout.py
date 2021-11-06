@@ -118,7 +118,7 @@ def generate_readargs(feature_list):
 def generate_markers(operation, ou_index):
     global helper_struct_defs
     # Load the C code for the Markers.
-    with open('markers.c', 'r') as markers_file:
+    with open("markers.c", "r") as markers_file:
         markers_c = markers_file.read()
 
     # Replace OU-specific placeholders in C code.
@@ -144,16 +144,16 @@ def collector(collector_flags, ou_processor_queues, pid, socket_fd):
     setproctitle.setproctitle("{} Collector".format(pid))
 
     # Read the C code for the Collector.
-    with open('collector.c', 'r') as collector_file:
+    with open("collector.c", "r") as collector_file:
         collector_c = collector_file.read()
     # Append the C code for the Probes.
-    with open('probes.c', 'r') as probes_file:
+    with open("probes.c", "r") as probes_file:
         collector_c += probes_file.read()
     # Append the C code for the Markers.
     for ou_index, ou in enumerate(operating_units):
         collector_c += generate_markers(ou, ou_index)
     # Prepend the helper struct defs.
-    collector_c = '\n'.join(helper_struct_defs.values()) + '\n' + collector_c
+    collector_c = "\n".join(helper_struct_defs.values()) + "\n" + collector_c
 
     # Replace remaining placeholders in C code.
     defs = ['{} {}'.format(metric.bpf_type, metric.name) for metric in metrics]
@@ -178,23 +178,28 @@ def collector(collector_flags, ou_processor_queues, pid, socket_fd):
     # if this pid won't generate network metrics.
     cflags = ['-DKBUILD_MODNAME="collector"']
     if socket_fd:
-        cflags.append('-DCLIENT_SOCKET_FD={}'.format(socket_fd))
+        cflags.append("-DCLIENT_SOCKET_FD={}".format(socket_fd))
 
-    collector_bpf = BPF(text=collector_c,
-                        usdt_contexts=[collector_probes],
-                        cflags=cflags)
+    collector_bpf = BPF(
+        text=collector_c, usdt_contexts=[collector_probes], cflags=cflags
+    )
 
     # open perf hardware events for BPF program
     collector_bpf["cpu_cycles"].open_perf_event(
-        PerfType.HARDWARE, PerfHWConfig.CPU_CYCLES)
+        PerfType.HARDWARE, PerfHWConfig.CPU_CYCLES
+    )
     collector_bpf["instructions"].open_perf_event(
-        PerfType.HARDWARE, PerfHWConfig.INSTRUCTIONS)
+        PerfType.HARDWARE, PerfHWConfig.INSTRUCTIONS
+    )
     collector_bpf["cache_references"].open_perf_event(
-        PerfType.HARDWARE, PerfHWConfig.CACHE_REFERENCES)
+        PerfType.HARDWARE, PerfHWConfig.CACHE_REFERENCES
+    )
     collector_bpf["cache_misses"].open_perf_event(
-        PerfType.HARDWARE, PerfHWConfig.CACHE_MISSES)
-    collector_bpf["ref_cpu_cycles"].open_perf_event(
-        PerfType.HARDWARE, PerfHWConfig.REF_CPU_CYCLES)
+        PerfType.HARDWARE, PerfHWConfig.CACHE_MISSES
+    )
+    # collector_bpf["ref_cpu_cycles"].open_perf_event(
+    #     PerfType.HARDWARE, PerfHWConfig.REF_CPU_CYCLES
+    # )
 
     heavy_hitter_ou_index = -1
     heavy_hitter_counter = 0
@@ -235,10 +240,11 @@ def collector(collector_flags, ou_processor_queues, pid, socket_fd):
 
     # Open an output buffer for this OU.
     for i in range(len(operating_units)):
-        output_buffer = f'collector_results_{i}'
+        output_buffer = f"collector_results_{i}"
         collector_bpf[output_buffer].open_perf_buffer(
             callback=collector_event_builder(output_buffer),
-            lost_cb=lost_collector_event)
+            lost_cb=lost_collector_event,
+        )
 
     logger.info("Collector attached to PID {}.".format(pid))
 
@@ -268,10 +274,10 @@ def processor(ou, buffered_strings):
 
     # Write the OU's feature columns for CSV header,
     # with an additional separator before resource metrics columns.
-    file.write(ou.features_columns() + ',')
+    file.write(ou.features_columns() + ",")
 
     # Write the resource metrics columns for the CSV header.
-    file.write(','.join(metric.name for metric in metrics) + '\n')
+    file.write(",".join(metric.name for metric in metrics) + "\n")
 
     logger.info("Processor started for {}.".format(ou.name()))
 
@@ -300,7 +306,7 @@ def processor(ou, buffered_strings):
         logger.info("Processor for {} shut down.".format(ou.name()))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Parse the command line args, in this case,
     # just the postmaster PID that we're attaching to.
     if len(sys.argv) < 2:
@@ -313,7 +319,7 @@ if __name__ == '__main__':
     setproctitle.setproctitle("{} TScout".format(postgres.postgres_pid))
 
     # Read the C code for TScout.
-    with open('tscout.c', 'r') as tscout_file:
+    with open("tscout.c", "r") as tscout_file:
         tscout_c = tscout_file.read()
 
     # Attach USDT probes to the target PID.
@@ -323,9 +329,11 @@ if __name__ == '__main__':
         tscout_probes.enable_probe(probe=probe, fn_name=probe)
 
     # Load TScout program to monitor the Postmaster.
-    tscout_bpf = BPF(text=tscout_c,
-                     usdt_contexts=[tscout_probes],
-                     cflags=['-DKBUILD_MODNAME="tscout"'])
+    tscout_bpf = BPF(
+        text=tscout_c,
+        usdt_contexts=[tscout_probes],
+        cflags=['-DKBUILD_MODNAME="tscout"'],
+    )
 
     keep_running = True
 
@@ -343,8 +351,13 @@ if __name__ == '__main__':
             #  may not work reliably with a poison pill for shutdown
             ou_processor_queue = mp.Queue()
             ou_processor_queues.append(ou_processor_queue)
-            ou_processor = mp.Process(target=processor,
-                                      args=(ou, ou_processor_queue,))
+            ou_processor = mp.Process(
+                target=processor,
+                args=(
+                    ou,
+                    ou_processor_queue,
+                ),
+            )
             ou_processor.start()
             ou_processors.append(ou_processor)
 
@@ -355,10 +368,8 @@ if __name__ == '__main__':
             collector_flags[child_pid] = True
             collector_process = mp.Process(
                 target=collector,
-                args=(collector_flags,
-                      ou_processor_queues,
-                      child_pid,
-                      socket_fd))
+                args=(collector_flags, ou_processor_queues, child_pid, socket_fd),
+            )
             collector_process.start()
             collector_processes[child_pid] = collector_process
 
@@ -389,7 +400,8 @@ if __name__ == '__main__':
 
 
         tscout_bpf["postmaster_events"].open_perf_buffer(
-            callback=postmaster_event, lost_cb=lost_something)
+            callback=postmaster_event, lost_cb=lost_something
+        )
 
         print("TScout attached to PID {}.".format(postgres.postgres_pid))
 
