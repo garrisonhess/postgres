@@ -266,11 +266,12 @@ def lost_something(num_lost):
     pass
 
 
-def processor(ou, buffered_strings):
+def processor(ou, buffered_strings, run_id):
     setproctitle.setproctitle("{} Processor".format(ou.name()))
 
     # Open output file, with the name based on the OU.
-    file = open("./{}.csv".format(ou.name()), "w")
+    Path(f"./{run_id}").mkdir(exist_ok=True)
+    file = open(f"./{run_id}/{ou.name()}.csv", "w")
 
     # Write the OU's feature columns for CSV header,
     # with an additional separator before resource metrics columns.
@@ -336,6 +337,7 @@ if __name__ == "__main__":
     )
 
     keep_running = True
+    run_id = int(time.time())
 
     with mp.Manager() as manager:
         # Create coordination data structures for Collectors and Processors
@@ -356,6 +358,7 @@ if __name__ == "__main__":
                 args=(
                     ou,
                     ou_processor_queue,
+                    run_id,
                 ),
             )
             ou_processor.start()
