@@ -61,18 +61,14 @@ def init_tscout(tscout_dir):
     os.chdir(tscout_dir)
     Popen(args=["rm -f *.csv"], shell=True).wait()
     Popen(args=["sudo pwd"], shell=True).wait()
-    tscout_proc = Popen(
-        args=["sudo python3 tscout.py `pgrep -ox postgres` &"], shell=True
-    )
+    Popen(args=["sudo python3 tscout.py `pgrep -ox postgres` &"], shell=True)
     time.sleep(5)
-    return tscout_proc
 
 
 def init_benchbase(build_benchbase, benchbase_dir, config_dir):
     os.chdir(benchbase_dir)
 
     config = config_dir / "config/postgres/sample_tpcc_config.xml"
-
     benchbase_snapshot_path = benchbase_dir / "target" / "benchbase-2021-SNAPSHOT.zip"
     benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
 
@@ -87,33 +83,11 @@ def init_benchbase(build_benchbase, benchbase_dir, config_dir):
     os.chdir(benchbase_snapshot_dir)
     print(os.getcwd())
     print("Starting Benchbase")
-    benchbase_cmd = (
-        "java -jar benchbase.jar -b tpcc -c {config} --create=true --load=true"
-    )
+    benchbase_cmd = f"java -jar benchbase.jar -b tpcc -c config/postgres/sample_tpcc_config.xml --create=true --load=true"
     Popen(
         args=[benchbase_cmd],
         shell=True,
     ).wait()
-
-
-def shutdown(pg_proc):
-    # for proc in psutil.process_iter(["pid", "name", "username"]):
-    #     if proc.info["name"].lower().startswith("postgres"):
-    #         try:
-    #             proc.kill()
-    #         except (psutil.NoSuchProcess, psutil.ZombieProcess):
-    #             pass
-
-    # logfile_name = "/home/gh/postgres/cmu-db/tscout/"
-    # if os.path.exists(logfile_name):
-    #     os.remove(logfile_name)
-    # logfile = open(logfile_name, "w")
-    # logfile.close()
-
-    # Shutdown postgres, tscout, and benchbase
-    print("Shutting down PG process and closing logfile")
-    pg_proc.kill()
-    tscout_proc.kill()
 
 
 if __name__ == "__main__":
@@ -130,13 +104,15 @@ if __name__ == "__main__":
     pg_dir = Path.home() / "postgres"
     cmudb_dir = pg_dir / "cmudb"
     tscout_dir = cmudb_dir / "tscout"
-    config_dir = cmudb_dir / "modeling" / "benchbase_configs"
-    results_dir = cmudb_dir / "modeling" / "results"
+    modeling_dir = cmudb_dir / "modeling"
+    config_dir = modeling_dir / "benchbase_configs"
+    results_dir = modeling_dir / "results"
     benchbase_dir = benchbase_dir = Path.home() / "benchbase"
 
     pg_proc = init_pg(args.build_pg, pg_dir, results_dir)
-    tscout_proc = init_tscout(tscout_dir)
+    init_tscout(tscout_dir)
     init_benchbase(args.build_benchbase, benchbase_dir, config_dir)
 
+    shutdown_script_path = modeling_dir / "shutdown_tscout.py"
+    Popen(args=[f"sudo python3 {shutdown_script_path}"], shell=True).wait()
     pg_proc.kill()
-    # shutdown(pg_proc, tscout_proc)
