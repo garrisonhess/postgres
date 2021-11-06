@@ -17,7 +17,7 @@ def init_pg(build_pg, pg_dir, results_dir):
         Popen(args=["make install -j -s"], shell=True).wait()
 
     # initialize postgres for benchbase execution
-    Popen(args=["rm -rf data"], shell=True).wait()
+    Popen(args=["rm -r data"], shell=True).wait()
     Popen(args=["mkdir -p data"], shell=True).wait()
     Popen(args=["./build/bin/initdb -D data"], shell=True).wait()
 
