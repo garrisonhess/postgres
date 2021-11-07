@@ -23,7 +23,7 @@ def init_pg(build_pg, pg_dir, results_dir):
     Popen(args=["mkdir -p data"], shell=True).wait()
     Popen(args=["./build/bin/initdb -D data"], shell=True).wait()
 
-    print(f"Starting Postgres")
+    print("Starting Postgres")
     pg_proc = Popen(
         args=["./build/bin/postgres -D data -W 2 &"],
         shell=True,
@@ -31,7 +31,7 @@ def init_pg(build_pg, pg_dir, results_dir):
         stderr=PIPE,
     )
     time.sleep(5)
-    print(f"Started Postgres")
+    print("Started Postgres")
 
     Popen(args=["./build/bin/createdb test"], shell=True).wait()
     Popen(
@@ -58,7 +58,7 @@ def init_pg(build_pg, pg_dir, results_dir):
 
 
 def init_tscout(tscout_dir, benchmark_name):
-    print(f"Starting TScout")
+    print("Starting TScout")
     os.chdir(tscout_dir)
     Popen(args=["rm -f *.csv"], shell=True).wait()
     Popen(args=["sudo pwd"], shell=True).wait()

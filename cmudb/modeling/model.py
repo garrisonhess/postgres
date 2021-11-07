@@ -84,9 +84,6 @@ class Model:
         self._base_model.fit(x, y)
 
     def predict(self, x):
-        if self._x_transformer is not None:
-            x = self._x_transformer(x)
-
         # transform the features
         if self._log_transform:
             x = np.log(x + _LOGTRANS_EPS)
