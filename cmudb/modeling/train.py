@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import argparse
 import os
 from pathlib import Path
@@ -54,31 +56,38 @@ def load_data(results_dir, test_size=0.2):
     for (ou_name, ou_df) in ou_name_to_df.items():
         print(f"OU Name: {ou_name}, ou_df shape: {ou_df.shape}")
 
-    df = ou_name_to_df["ExecIndexScan"]
+    ou_name = "ExecIndexScan"
+    df = ou_name_to_df[ou_name]
+
+    # drop features we don't want for now
+    features_to_drop = ["start_time", "end_time", "cpu_id", "query_id"]
+    df = df.drop(features_to_drop, axis=1)
+
     cols_to_remove = []
     for col in df.columns:
         if df[col].nunique() == 1:
             cols_to_remove.append(col)
 
     df = df.drop(cols_to_remove, axis=1)
-    print(f"Dropped zero-variance columns: {cols_to_remove}")
-    print(f"Num Remaining: {len(df.columns)}, Num Removed {len(cols_to_remove)}")
+    # print(f"Dropped zero-variance columns: {cols_to_remove}")
+    # print(f"Num Remaining: {len(df.columns)}, Num Removed {len(cols_to_remove)}")
 
-    df = df.drop(["start_time", "end_time"], axis=1)
+    targets = [
+        "cpu_cycles",
+        "instructions",
+        "cache_references",
+        "cache_misses",
+        "elapsed_us",
+    ]
+    features = [col for col in df.columns if col not in targets]
 
-    X = df[
-        [
-            "IndexScanState_iss_NumScanKeys",
-            "IndexScanState_iss_NumRuntimeKeys",
-            "IndexScanState_iss_RuntimeKeysReady",
-            "Plan_startup_cost",
-            "Plan_total_cost",
-        ]
-    ].values
+    print(f"OU Name: {ou_name}, Features: {features}")
+    X = df[features].values
+    y = df[targets].values
 
-    y = df[
-        ["cpu_cycles", "instructions", "cache_references", "cache_misses", "elapsed_us"]
-    ].values
+    # bypass train-test split
+    if test_size < 0:
+        return X, X, y, y
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=42
@@ -94,16 +103,12 @@ if __name__ == "__main__":
 
     # load the data
     results_dir = Path.home() / "postgres/cmudb/tscout/results/tpcc"
-    X_train, X_test, y_train, y_test = load_data(results_dir, test_size=0.1)
+    X_train, X_test, y_train, y_test = load_data(results_dir, test_size=-1)
     methods = [
         "lr",
         "huber",
         "rf",
         "gbm",
-        "mt_lasso",
-        "lasso",
-        "dt",
-        "mt_elastic",
     ]
 
     targets = [
@@ -116,16 +121,16 @@ if __name__ == "__main__":
 
     for method in methods:
         # train the model
-        ou_model = model.Model(method=method, normalize=True, log_transform=False)
+        ou_model = model.Model(
+            method=method, normalize=True, log_transform=True, robust=True
+        )
         ou_model.train(X_train, y_train)
 
         # predict
         y_pred = ou_model.predict(X_test)
 
-        print(f"============= Model Summary for Model: {method} =============")
+        print(f"\n============= Model Summary for Model: {method} =============")
         for target_idx, target in enumerate(targets):
-            print(y_pred.shape)
-            print(y_test.shape)
             target_pred = y_pred[:, target_idx]
             target_true = y_test[:, target_idx]
             mse = mean_squared_error(target_pred, target_true)
@@ -133,9 +138,8 @@ if __name__ == "__main__":
             mae = mean_absolute_error(target_pred, target_true)
             r2 = r2_score(target_pred, target_true)
             print(f"===== Target: {target} =====")
-            print(f"MSE: {mse}")
-            print(f"MAE: {mae}")
-            print(f"Explained Variance: {exp_var}")
-            print(f"R-Squared: {r2}")
-
-        print("======================== END SUMMARY ========================")
+            print(f"MSE: {round(mse, 2)}")
+            print(f"MAE: {round(mae, 2)}")
+            print(f"Explained Variance: {round(exp_var, 2)}")
+            print(f"R-Squared: {round(r2, 2)}")
+        print("======================== END SUMMARY ========================\n")
