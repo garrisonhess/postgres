@@ -67,7 +67,6 @@ class Model:
         x_transformer=None,
     ):
         """
-
         :param method: which ML method to use
         :param normalize: whether to perform standard normalization on data (both x and y)
         :param log_transform: whether to perform log transformation on data (both x and y)

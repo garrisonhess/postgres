@@ -226,17 +226,17 @@ if __name__ == "__main__":
     aparser = argparse.ArgumentParser(description="OU Model Trainer")
     aparser.add_argument(
         "--input_path",
-        default="modeling/ou_runner_input",
+        default="results/ou_runner_input",
         help="Input file path for the ou runners",
     )
     aparser.add_argument(
         "--model_results_path",
-        default="modeling/ou_runner_model_results",
+        default="results/ou_runner_model_results",
         help="Prediction results of the ou models",
     )
     aparser.add_argument(
         "--save_path",
-        default="modeling/trained_model",
+        default="results/trained_model",
         help="Path to save the ou models",
     )
     aparser.add_argument(
@@ -255,15 +255,7 @@ if __name__ == "__main__":
         type=float,
         help="% of values to remove from both top and bottom",
     )
-    aparser.add_argument(
-        "--expose_all", default=True, help="Should expose all data to the model"
-    )
-    aparser.add_argument(
-        "--txn_sample_rate",
-        type=int,
-        default=2,
-        help="Sampling rate percentage for the transaction OUs (ignored if 0)",
-    )
+
     aparser.add_argument("--log", default="info", help="The logging level")
     args = aparser.parse_args()
 
