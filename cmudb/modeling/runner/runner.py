@@ -2,7 +2,6 @@
 
 from subprocess import PIPE, Popen
 import time
-import psutil
 import os
 import argparse
 from pathlib import Path
@@ -95,10 +94,7 @@ def run_benchbase(build_benchbase, benchbase_dir, benchmark_name, input_cfg_path
 
     print("Starting Benchbase")
     benchbase_cmd = f"java -jar benchbase.jar -b {benchmark_name} -c config/postgres/{benchmark_name}_config.xml --create=true --load=true"
-    Popen(
-        args=[benchbase_cmd],
-        shell=True,
-    ).wait()
+    Popen(args=[benchbase_cmd], shell=True,).wait()
 
 
 if __name__ == "__main__":

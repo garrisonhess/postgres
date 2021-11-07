@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 
-import time
 import psutil
-import os
-from pathlib import Path
 
 LISTENER_NAMES = [
     "ExecAgg",
