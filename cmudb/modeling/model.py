@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 
 import numpy as np
-
 import lightgbm as lgb
-
-from sklearn import linear_model
-from sklearn import kernel_ridge
-from sklearn import ensemble
-from sklearn import preprocessing
-from sklearn import neural_network
-from sklearn import multioutput
-from sklearn import svm
+from sklearn import (
+    linear_model,
+    kernel_ridge,
+    ensemble,
+    preprocessing,
+    neural_network,
+    multioutput,
+    svm,
+    tree,
+)
 
 # import warnings filter
 from warnings import simplefilter
@@ -20,8 +21,25 @@ simplefilter(action="ignore", category=FutureWarning)
 
 _LOGTRANS_EPS = 1e-4
 
+METHODS = [
+    "lr",
+    "huber",
+    "svr",
+    "kr",
+    "rf",
+    "gbm",
+    "nn",
+    "mt_lasso",
+    "lasso",
+    "dt",
+    "mt_elastic",
+]
+
 
 def _get_base_ml_model(method):
+    if method not in METHODS:
+        raise ValueError(f"Unknown method: {method}")
+
     regressor = None
     if method == "lr":
         regressor = linear_model.LinearRegression()
@@ -37,7 +55,7 @@ def _get_base_ml_model(method):
         regressor = ensemble.RandomForestRegressor(n_estimators=50, n_jobs=8)
     if method == "gbm":
         regressor = lgb.LGBMRegressor(
-            max_depth=20,
+            max_depth=-1,
             num_leaves=1000,
             n_estimators=100,
             min_child_samples=5,
@@ -48,6 +66,14 @@ def _get_base_ml_model(method):
         regressor = neural_network.MLPRegressor(
             hidden_layer_sizes=(25, 25), early_stopping=True, max_iter=1000000, alpha=5
         )
+    if method == "mt_lasso":
+        regressor = linear_model.MultiTaskLasso(alpha=1.0)
+    if method == "lasso":
+        regressor = linear_model.Lasso(alpha=1.0)
+    if method == "dt":
+        regressor = tree.DecisionTreeRegressor()
+    if method == "mt_elastic":
+        regressor = linear_model.MultiTaskElasticNet(l1_ratio=0.5)
 
     return regressor
 
@@ -58,9 +84,7 @@ class Model:
     With the implementation for different normalization handlings
     """
 
-    def __init__(
-        self, method, normalize=True, log_transform=True,
-    ):
+    def __init__(self, method, normalize=True, log_transform=True, robust=False):
         """
         :param method: which ML method to use
         :param normalize: whether to perform standard normalization on data (both x and y)
@@ -69,8 +93,16 @@ class Model:
         self._base_model = _get_base_ml_model(method)
         self._normalize = normalize
         self._log_transform = log_transform
-        self._xscaler = preprocessing.StandardScaler()
-        self._yscaler = preprocessing.StandardScaler()
+        self._xscaler = (
+            preprocessing.StandardScaler()
+            if not robust
+            else preprocessing.RobustScaler()
+        )
+        self._yscaler = (
+            preprocessing.StandardScaler()
+            if not robust
+            else preprocessing.RobustScaler()
+        )
 
     def train(self, x, y):
         if self._log_transform:

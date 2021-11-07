@@ -1,14 +1,16 @@
 import argparse
-from datetime import datetime
 import os
 from pathlib import Path
 import pandas as pd
 import numpy as np
-from sklearn import model_selection
-
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import (
+    explained_variance_score,
+    mean_absolute_error,
+    mean_squared_error,
+    r2_score,
+)
 import model
-
-# from . import model
 
 np.set_printoptions(precision=4)
 np.set_printoptions(edgeitems=10)
@@ -30,7 +32,7 @@ class OUModelTrainer:
         pass
 
 
-def load_data(results_dir):
+def load_data(results_dir, test_size=0.2):
     run_dirs = sorted(os.listdir(results_dir), reverse=True)
     print(f"Runs: {run_dirs}")
     run_timestamp = run_dirs[0]
@@ -64,22 +66,25 @@ def load_data(results_dir):
 
     df = df.drop(["start_time", "end_time"], axis=1)
 
-    features = df[
+    X = df[
         [
             "IndexScanState_iss_NumScanKeys",
             "IndexScanState_iss_NumRuntimeKeys",
             "IndexScanState_iss_RuntimeKeysReady",
             "Plan_startup_cost",
             "Plan_total_cost",
-            "cpu_id",
         ]
-    ]
+    ].values
 
-    targets = df[
+    y = df[
         ["cpu_cycles", "instructions", "cache_references", "cache_misses", "elapsed_us"]
-    ]
+    ].values
 
-    return features, targets
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=test_size, random_state=42
+    )
+
+    return X_train, X_test, y_train, y_test
 
 
 if __name__ == "__main__":
@@ -89,15 +94,48 @@ if __name__ == "__main__":
 
     # load the data
     results_dir = Path.home() / "postgres/cmudb/tscout/results/tpcc"
-    features, targets = load_data(results_dir)
+    X_train, X_test, y_train, y_test = load_data(results_dir, test_size=0.1)
+    methods = [
+        "lr",
+        "huber",
+        "rf",
+        "gbm",
+        "mt_lasso",
+        "lasso",
+        "dt",
+        "mt_elastic",
+    ]
 
-    # train the model
-    rf_model = model.Model(method="rf", normalize=False, log_transform=False)
-    rf_model.train(features, targets)
+    targets = [
+        "cpu_cycles",
+        "instructions",
+        "cache_references",
+        "cache_misses",
+        "elapsed_us",
+    ]
 
-    # predict
-    preds = rf_model.predict(features)
-    print(preds)
+    for method in methods:
+        # train the model
+        ou_model = model.Model(method=method, normalize=True, log_transform=False)
+        ou_model.train(X_train, y_train)
 
-    # # evaluate
+        # predict
+        y_pred = ou_model.predict(X_test)
 
+        print(f"============= Model Summary for Model: {method} =============")
+        for target_idx, target in enumerate(targets):
+            print(y_pred.shape)
+            print(y_test.shape)
+            target_pred = y_pred[:, target_idx]
+            target_true = y_test[:, target_idx]
+            mse = mean_squared_error(target_pred, target_true)
+            exp_var = explained_variance_score(target_pred, target_true)
+            mae = mean_absolute_error(target_pred, target_true)
+            r2 = r2_score(target_pred, target_true)
+            print(f"===== Target: {target} =====")
+            print(f"MSE: {mse}")
+            print(f"MAE: {mae}")
+            print(f"Explained Variance: {exp_var}")
+            print(f"R-Squared: {r2}")
+
+        print("======================== END SUMMARY ========================")
