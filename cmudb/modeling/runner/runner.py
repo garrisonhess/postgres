@@ -6,10 +6,13 @@ import os
 import argparse
 from pathlib import Path
 import shutil
+from datetime import datetime
+import psutil
 
-
-def init_pg(build_pg, pg_dir, results_dir):
+# TODO: change psql commands to use psycopg2
+def init_pg(build_pg, pg_dir, output_dir):
     os.chdir(pg_dir)
+    pg_log_file = open(output_dir / "pg_log.txt", "w")
 
     if build_pg:
         print("Building Postgres")
@@ -19,16 +22,16 @@ def init_pg(build_pg, pg_dir, results_dir):
         Popen(args=["make install -j -s"], shell=True).wait()
 
     # initialize postgres for benchbase execution
-    Popen(args=["rm -r data"], shell=True).wait()
-    Popen(args=["mkdir -p data"], shell=True).wait()
+    shutil.rmtree("data")
+    Path("data").mkdir(parents=True, exist_ok=True)
     Popen(args=["./build/bin/initdb -D data"], shell=True).wait()
 
     print("Starting Postgres")
     pg_proc = Popen(
         args=["./build/bin/postgres -D data -W 2 &"],
         shell=True,
-        stdout=PIPE,
-        stderr=PIPE,
+        stdout=pg_log_file,
+        stderr=pg_log_file,
     )
     time.sleep(5)
     print("Started Postgres")
@@ -54,22 +57,26 @@ def init_pg(build_pg, pg_dir, results_dir):
         shell=True,
     ).wait()
 
-    return pg_proc
+    return pg_proc, pg_log_file
 
 
-def init_tscout(tscout_dir, benchmark_name):
+# TODO: replace pgrep call with psutil
+def init_tscout(tscout_dir, benchmark_name, experiment_name, run_id):
     print("Starting TScout")
     os.chdir(tscout_dir)
-    Popen(args=["rm -f *.csv"], shell=True).wait()
-    Popen(args=["sudo pwd"], shell=True).wait()
-    Popen(
-        args=[f"sudo python3 tscout.py `pgrep -ox postgres` {benchmark_name} &"],
+    tscout_proc = Popen(
+        args=[
+            f"sudo python3 tscout.py `pgrep -ox postgres` {benchmark_name} {experiment_name} {run_id} &"
+        ],
         shell=True,
     )
     time.sleep(5)
+    return tscout_proc
 
 
-def run_benchbase(build_benchbase, benchbase_dir, benchmark_name, input_cfg_path):
+def run_benchbase(
+    build_benchbase, benchbase_dir, benchmark_name, input_cfg_path, output_dir
+):
     os.chdir(benchbase_dir)
 
     benchbase_snapshot_path = benchbase_dir / "target" / "benchbase-2021-SNAPSHOT.zip"
@@ -84,17 +91,25 @@ def run_benchbase(build_benchbase, benchbase_dir, benchmark_name, input_cfg_path
         Popen(args=[f"unzip {benchbase_snapshot_path}"], shell=True).wait()
 
     os.chdir(benchbase_snapshot_dir)
-    print(os.getcwd())
 
-    # move runner config to benchbase
+    # move runner config to benchbase and also save it in the output directory
     benchbase_cfg_path = (
         benchbase_snapshot_dir / f"config/postgres/{benchmark_name}_config.xml"
     )
-    shutil.copyfile(input_cfg_path, benchbase_cfg_path)
+    shutil.copy(input_cfg_path, benchbase_cfg_path)
+    shutil.copy(input_cfg_path, output_dir)
 
     print("Starting Benchbase")
-    benchbase_cmd = f"java -jar benchbase.jar -b {benchmark_name} -c config/postgres/{benchmark_name}_config.xml --create=true --load=true"
-    Popen(args=[benchbase_cmd], shell=True,).wait()
+    benchbase_cmd = f"java -jar benchbase.jar -b {benchmark_name} -c config/postgres/{benchmark_name}_config.xml --create=true --load=true --execute=true"
+    Popen(args=[benchbase_cmd], shell=True).wait()
+
+    # Copy benchbase results to experimental results directory
+    benchbase_results_dir = benchbase_snapshot_dir / "results"
+    print(f"Copying Benchbase results from {benchbase_results_dir} to {output_dir}")
+    result_files = benchbase_results_dir.glob("**/*")
+    for file in result_files:
+        print(f"Copying {file} to {output_dir}")
+        shutil.copy(file, output_dir)
 
 
 if __name__ == "__main__":
@@ -108,12 +123,21 @@ if __name__ == "__main__":
     parser.add_argument(
         "--benchmark-name", dest="benchmark_name", action="store", default="tpcc"
     )
+    parser.add_argument(
+        "--experiment-name", dest="experiment_name", action="store", default=""
+    )
+    parser.add_argument("--nruns", dest="nruns", action="store", default=5)
 
     args = parser.parse_args()
     build_benchbase = args.build_benchbase
     benchmark_name = args.benchmark_name
+    experiment_name = args.experiment_name
     build_pg = args.build_pg
+    nruns = args.nruns
     valid_benchmarks = ["tpcc", "tpch"]
+
+    if len(experiment_name) == 0:
+        experiment_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
     if benchmark_name not in valid_benchmarks:
         raise ValueError(f"Invalid benchmark name: {benchmark_name}")
@@ -122,17 +146,34 @@ if __name__ == "__main__":
     cmudb_dir = pg_dir / "cmudb"
     tscout_dir = cmudb_dir / "tscout"
     modeling_dir = cmudb_dir / "modeling"
-    results_dir = modeling_dir / "results" / benchmark_name
     runner_dir = modeling_dir / "runner"
     benchmark_cfg_path = (
         runner_dir / "benchbase_configs" / f"{benchmark_name}_config.xml"
     )
-    benchbase_dir = benchbase_dir = Path.home() / "benchbase"
+    benchbase_dir = Path.home() / "benchbase"
+    output_dir = tscout_dir / "results" / benchmark_name / experiment_name
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    pg_proc = init_pg(build_pg, pg_dir, results_dir)
-    init_tscout(tscout_dir, benchmark_name)
-    run_benchbase(build_benchbase, benchbase_dir, benchmark_name, benchmark_cfg_path)
+    print(
+        f"Running experiment: {experiment_name} with {nruns} runs and output_dir: {output_dir}"
+    )
+    for run_id in range(nruns):
+        print(f"Starting run {run_id}")
+        pg_proc, pg_log_file = init_pg(build_pg, pg_dir, output_dir)
+        tscout_proc = init_tscout(tscout_dir, benchmark_name, experiment_name, run_id)
+        run_benchbase(
+            build_benchbase,
+            benchbase_dir,
+            benchmark_name,
+            benchmark_cfg_path,
+            output_dir,
+        )
 
-    cleanup_script_path = runner_dir / "cleanup_run.py"
-    Popen(args=[f"sudo python3 {cleanup_script_path}"], shell=True).wait()
-    pg_proc.kill()
+        pg_proc.kill()
+        tscout_proc.kill()
+        pg_log_file.close()
+        cleanup_script_path = runner_dir / "cleanup_run.py"
+        username = psutil.Process().username()
+        Popen(
+            args=[f"sudo python3 {cleanup_script_path} {username}"], shell=True
+        ).wait()
