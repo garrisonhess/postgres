@@ -16,32 +16,38 @@ from sklearn import svm
 from warnings import simplefilter
 
 # ignore all future warnings
-simplefilter(action='ignore', category=FutureWarning)
+simplefilter(action="ignore", category=FutureWarning)
 
 _LOGTRANS_EPS = 1e-4
 
 
 def _get_base_ml_model(method):
     regressor = None
-    if method == 'lr':
+    if method == "lr":
         regressor = linear_model.LinearRegression()
-    if method == 'huber':
+    if method == "huber":
         regressor = linear_model.HuberRegressor(max_iter=50)
         regressor = multioutput.MultiOutputRegressor(regressor)
-    if method == 'svr':
+    if method == "svr":
         regressor = svm.LinearSVR()
         regressor = multioutput.MultiOutputRegressor(regressor)
-    if method == 'kr':
-        regressor = kernel_ridge.KernelRidge(kernel='rbf')
-    if method == 'rf':
+    if method == "kr":
+        regressor = kernel_ridge.KernelRidge(kernel="rbf")
+    if method == "rf":
         regressor = ensemble.RandomForestRegressor(n_estimators=50, n_jobs=8)
-    if method == 'gbm':
-        regressor = lgb.LGBMRegressor(max_depth=20, num_leaves=1000, n_estimators=100, min_child_samples=5,
-                                      random_state=42)
+    if method == "gbm":
+        regressor = lgb.LGBMRegressor(
+            max_depth=20,
+            num_leaves=1000,
+            n_estimators=100,
+            min_child_samples=5,
+            random_state=42,
+        )
         regressor = multioutput.MultiOutputRegressor(regressor)
-    if method == 'nn':
-        regressor = neural_network.MLPRegressor(hidden_layer_sizes=(25, 25), early_stopping=True,
-                                                max_iter=1000000, alpha=5)
+    if method == "nn":
+        regressor = neural_network.MLPRegressor(
+            hidden_layer_sizes=(25, 25), early_stopping=True, max_iter=1000000, alpha=5
+        )
 
     return regressor
 
@@ -52,7 +58,14 @@ class Model:
     With the implementation for different normalization handlings
     """
 
-    def __init__(self, method, normalize=True, log_transform=True, y_transformer=None, x_transformer=None):
+    def __init__(
+        self,
+        method,
+        normalize=True,
+        log_transform=True,
+        y_transformer=None,
+        x_transformer=None,
+    ):
         """
 
         :param method: which ML method to use

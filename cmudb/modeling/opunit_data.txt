@@ -1,0 +1,24 @@
+These are the current relevant function headers and docstrings from noisepage
+
+# def get_ou_runner_data(filename, model_results_path, txn_sample_rate, model_map={}, predict_cache={}, trim=0.2):
+#     """Get the training data from the ou runner
+
+#     :param filename: the input data file
+#     :param model_results_path: results log directory
+#     :param txn_sample_rate: sampling rate for the transaction OUs
+#     :param model_map: the map from OpUnit to the ou model
+#     :param predict_cache: cache for the ou model prediction
+#     :param trim: % of too high/too low anomalies to prune
+#     :return: the list of Data for execution operating units
+#     """
+
+
+# def _execution_get_ou_runner_data(filename, model_map, predict_cache, trim):
+#     """Get the training data from the ou runner
+
+#     :param filename: the input data file
+#     :param model_map: the map from OpUnit to the ou model
+#     :param predict_cache: cache for the ou model prediction
+#     :param trim: % of too high/too low anomalies to prune
+#     :return: the list of Data for execution operating units
+#     """
