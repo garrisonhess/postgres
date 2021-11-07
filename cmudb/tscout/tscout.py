@@ -7,6 +7,7 @@ import psutil
 import setproctitle
 import logging
 from bcc import BPF, USDT, PerfHWConfig, PerfType, utils
+from datetime import datetime
 
 import model
 
@@ -266,12 +267,12 @@ def lost_something(num_lost):
     pass
 
 
-def processor(ou, buffered_strings, run_id):
+def processor(ou, buffered_strings, run_id, benchmark_name):
     setproctitle.setproctitle("{} Processor".format(ou.name()))
 
     # Open output file, with the name based on the OU.
-    Path(f"./results/{run_id}").mkdir(parents=True, exist_ok=True)
-    file = open(f"./results/{run_id}/{ou.name()}.csv", "w")
+    Path(f"./results/{benchmark_name}/{run_id}").mkdir(parents=True, exist_ok=True)
+    file = open(f"./results/{benchmark_name}/{run_id}/{ou.name()}.csv", "w")
 
     # Write the OU's feature columns for CSV header,
     # with an additional separator before resource metrics columns.
@@ -337,7 +338,7 @@ if __name__ == "__main__":
     )
 
     keep_running = True
-    run_id = int(time.time())
+    run_id = datetime.now().strftime("%Y-%m-%d_%I-%M-%S")
 
     with mp.Manager() as manager:
         # Create coordination data structures for Collectors and Processors
@@ -359,6 +360,7 @@ if __name__ == "__main__":
                     ou,
                     ou_processor_queue,
                     run_id,
+                    benchmark_name,
                 ),
             )
             ou_processor.start()

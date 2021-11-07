@@ -4,6 +4,7 @@ import psutil
 import os
 import argparse
 from pathlib import Path
+import shutil
 
 
 def init_pg(build_pg, pg_dir, results_dir):
@@ -55,19 +56,21 @@ def init_pg(build_pg, pg_dir, results_dir):
     return pg_proc
 
 
-def init_tscout(tscout_dir):
+def init_tscout(tscout_dir, benchmark_name):
     print(f"Starting TScout")
     os.chdir(tscout_dir)
     Popen(args=["rm -f *.csv"], shell=True).wait()
     Popen(args=["sudo pwd"], shell=True).wait()
-    Popen(args=["sudo python3 tscout.py `pgrep -ox postgres` &"], shell=True)
+    Popen(
+        args=[f"sudo python3 tscout.py `pgrep -ox postgres` {benchmark_name} &"],
+        shell=True,
+    )
     time.sleep(5)
 
 
-def init_benchbase(build_benchbase, benchbase_dir, config_dir):
+def run_benchbase(build_benchbase, benchbase_dir, benchmark_name, input_cfg_path):
     os.chdir(benchbase_dir)
 
-    config = config_dir / "config/postgres/sample_tpcc_config.xml"
     benchbase_snapshot_path = benchbase_dir / "target" / "benchbase-2021-SNAPSHOT.zip"
     benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
 
@@ -81,8 +84,15 @@ def init_benchbase(build_benchbase, benchbase_dir, config_dir):
 
     os.chdir(benchbase_snapshot_dir)
     print(os.getcwd())
+
+    # move runner config to benchbase
+    benchbase_cfg_path = (
+        benchbase_snapshot_dir / f"config/postgres/{benchmark_name}_config.xml"
+    )
+    shutil.copyfile(input_cfg_path, benchbase_cfg_path)
+
     print("Starting Benchbase")
-    benchbase_cmd = f"java -jar benchbase.jar -b tpcc -c config/postgres/sample_tpcc_config.xml --create=true --load=true"
+    benchbase_cmd = f"java -jar benchbase.jar -b {benchmark_name} -c config/postgres/{benchmark_name}_config.xml --create=true --load=true"
     Popen(
         args=[benchbase_cmd],
         shell=True,
@@ -97,21 +107,34 @@ if __name__ == "__main__":
     parser.add_argument(
         "--build-pg", dest="build_pg", action="store_true", default=False
     )
+    parser.add_argument(
+        "--benchmark-name", dest="benchmark_name", action="store", default="tpcc"
+    )
 
     args = parser.parse_args()
+    build_benchbase = args.build_benchbase
+    benchmark_name = args.benchmark_name
+    build_pg = args.build_pg
+    valid_benchmarks = ["tpcc", "tpch"]
+
+    if benchmark_name not in valid_benchmarks:
+        raise ValueError(f"Invalid benchmark name: {benchmark_name}")
 
     pg_dir = Path.home() / "postgres"
     cmudb_dir = pg_dir / "cmudb"
     tscout_dir = cmudb_dir / "tscout"
     modeling_dir = cmudb_dir / "modeling"
-    config_dir = modeling_dir / "benchbase_configs"
-    results_dir = modeling_dir / "results"
+    results_dir = modeling_dir / "results" / benchmark_name
+    runner_dir = modeling_dir / "runner"
+    benchmark_cfg_path = (
+        runner_dir / "benchbase_configs" / f"{benchmark_name}_config.xml"
+    )
     benchbase_dir = benchbase_dir = Path.home() / "benchbase"
 
-    pg_proc = init_pg(args.build_pg, pg_dir, results_dir)
-    init_tscout(tscout_dir)
-    init_benchbase(args.build_benchbase, benchbase_dir, config_dir)
+    pg_proc = init_pg(build_pg, pg_dir, results_dir)
+    init_tscout(tscout_dir, benchmark_name)
+    run_benchbase(build_benchbase, benchbase_dir, benchmark_name, benchmark_cfg_path)
 
-    shutdown_script_path = modeling_dir / "shutdown_tscout.py"
-    Popen(args=[f"sudo python3 {shutdown_script_path}"], shell=True).wait()
+    cleanup_script_path = runner_dir / "cleanup_run.py"
+    Popen(args=[f"sudo python3 {cleanup_script_path}"], shell=True).wait()
     pg_proc.kill()
