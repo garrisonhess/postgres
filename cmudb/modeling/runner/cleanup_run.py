@@ -7,41 +7,41 @@ import sys
 
 LISTENER_NAMES = [
     "ExecAgg",
-    "ExecAppend",
-    "ExecCteScan",
-    "ExecCustomScan",
-    "ExecForeignScan",
-    "ExecFunctionScan",
-    "ExecGather",
-    "ExecGatherMerge",
-    "ExecGroup",
-    "ExecHashJoinImpl",
-    "ExecIncrementalSort",
-    "ExecIndexOnlyScan",
-    "ExecIndexScan",
-    "ExecLimit",
-    "ExecLockRows",
-    "ExecMaterial",
-    "ExecMergeAppend",
-    "ExecMergeJoin",
-    "ExecModifyTable",
-    "ExecNamedTuplestoreScan",
-    "ExecNestLoop",
-    "ExecProjectSet",
-    "ExecRecursiveUnion",
-    "ExecResult",
-    "ExecSampleScan",
-    "ExecSeqScan",
-    "ExecSetOp",
+    "ExecAppe",
+    "ExecCteS",
+    "ExecCust",
+    "ExecFore",
+    "ExecFunc",
+    "ExecGath",
+    "ExecGath",
+    "ExecGrou",
+    "ExecHash",
+    "ExecIncr",
+    "ExecInde",
+    "ExecInde",
+    "ExecLimi",
+    "ExecLock",
+    "ExecMate",
+    "ExecMerg",
+    "ExecMerg",
+    "ExecModi",
+    "ExecName",
+    "ExecNest",
+    "ExecProj",
+    "ExecRecu",
+    "ExecResu",
+    "ExecSamp",
+    "ExecSeqS",
+    "ExecSetO",
     "ExecSort",
-    "ExecSubPlan",
-    "ExecSubqueryScan",
-    "ExecTableFuncScan",
-    "ExecTidScan",
-    "ExecUnique",
-    "ExecValuesScan",
-    "ExecWindowAgg",
-    "ExecWorkTableScan",
+    "ExecSubP",
+    "ExecSubq",
+    "ExecTabl",
+    "ExecTidS",
+    "ExecUniq",
+    "ExecValu",
+    "ExecWind",
+    "ExecWork",
 ]
 
 
@@ -49,17 +49,18 @@ def shutdown():
     # Shutdown postgres, tscout, and benchbase
     print("Shutting down PG process and closing logfile")
     for proc in psutil.process_iter(["pid", "name", "username"]):
-        if proc.info["name"].lower().startswith("postgres"):
-            print(f"Killing Postgres process: {proc}")
+        proc_name = proc.info["name"].lower()
+        if proc_name.startswith("postgres") or proc_name.startswith("tscout"):
             try:
                 proc.kill()
             except (psutil.NoSuchProcess, psutil.ZombieProcess):
                 pass
+
         else:
             for listener in LISTENER_NAMES:
-                if listener in proc.info["name"]:
+                listener = listener.lower()
+                if proc_name.startswith(listener):
                     try:
-                        print(f"Killing TScout process: {proc.info['name']}")
                         proc.kill()
                     except (psutil.NoSuchProcess, psutil.ZombieProcess):
                         pass
