@@ -58,8 +58,7 @@ def shutdown():
 
         else:
             for listener in LISTENER_NAMES:
-                listener = listener.lower()
-                if proc_name.startswith(listener):
+                if proc_name.startswith(listener.lower()):
                     try:
                         proc.kill()
                     except (psutil.NoSuchProcess, psutil.ZombieProcess):

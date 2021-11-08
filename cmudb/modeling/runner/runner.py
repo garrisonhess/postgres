@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 from datetime import datetime
 import psutil
+import signal
 
 
 def build_postgres(pg_dir):
@@ -66,18 +67,20 @@ def init_tscout(tscout_dir, benchmark_name, experiment_name, run_id):
     print(f"Starting TScout for {benchmark_name}, {experiment_name}, run_id: {run_id}")
     os.chdir(tscout_dir)
 
-    pg_pid = None
-    for proc in psutil.process_iter(["pid", "name"]):
-        if proc["name"] == "postgres":
-            if pg_pid is not None:
-                raise Exception("Found multiple postgres processes")
-            pg_pid = proc["pid"]
+    # pg_pid = None
+    # for proc in psutil.process_iter(["pid", "name"]):
+    #     if proc.info["name"].lower() == "postgres":
+    #         if pg_pid is not None:
+    #             raise Exception("Found multiple postgres processes")
+    #         pg_pid = proc.info["pid"]
 
-    if pg_pid is None:
-        raise Exception("Failed to find postgres process")
+    # if pg_pid is None:
+    #     raise Exception("Failed to find postgres process")
 
     tscout_proc = Popen(
-        args=[f"sudo python3 tscout.py {pg_pid} {benchmark_name} {experiment_name} {run_id} &"],
+        args=[
+            f"sudo python3 tscout.py `pgrep -ox postgres` {benchmark_name} {experiment_name} {run_id} &"
+        ],
         shell=True,
     )
     time.sleep(10)
@@ -114,7 +117,10 @@ def init_benchbase(
 
     print(f"Initializing Benchbase for Benchmark: {benchmark_name}")
     benchbase_cmd = f"java -jar benchbase.jar -b {benchmark_name} -c config/postgres/{benchmark_name}_config.xml --create=true --load=true --execute=false"
-    Popen(args=[benchbase_cmd], shell=True).wait()
+    bbase_proc = Popen(args=[benchbase_cmd], shell=True)
+    bbase_proc.wait()
+    if bbase_proc.returncode != 0:
+        raise Exception(f"Benchbase failed with return code: {bbase_proc.returncode}")
     print(f"Initialized Benchbase for Benchmark: {benchmark_name}")
 
 
@@ -134,7 +140,10 @@ def exec_benchbase(benchbase_dir, benchmark_name, benchbase_run_results_dir):
 
     print("Starting Benchbase")
     benchbase_cmd = f"java -jar benchbase.jar -b {benchmark_name} -c config/postgres/{benchmark_name}_config.xml --create=false --load=false --execute=true"
-    Popen(args=[benchbase_cmd], shell=True).wait()
+    bbase_proc = Popen(args=[benchbase_cmd], shell=True)
+    bbase_proc.wait()
+    if bbase_proc.returncode != 0:
+        raise Exception(f"Benchbase failed with return code: {bbase_proc.returncode}")
 
     # Copy benchbase results to experiment results directory
     benchbase_results_dir = benchbase_snapshot_dir / "results"
@@ -146,9 +155,13 @@ def exec_benchbase(benchbase_dir, benchmark_name, benchbase_run_results_dir):
     #     shutil.copy(file, benchbase_run_results_dir)
 
 
-def cleanup(runner_dir, err, message=""):
-    print(message)
-    print(err)
+def cleanup_run(runner_dir, err, message=""):
+    if len(message) > 0:
+        print(message)
+
+    if err is not None:
+        print(err)
+    print("Calling cleanup script")
     cleanup_script_path = runner_dir / "cleanup_run.py"
     username = psutil.Process().username()
     Popen(args=[f"sudo python3 {cleanup_script_path} {username}"], shell=True).wait()
@@ -160,7 +173,7 @@ if __name__ == "__main__":
     parser.add_argument("--build-pg", dest="build_pg", action="store_true", default=False)
     parser.add_argument("--benchmark-name", dest="benchmark_name", action="store", default="tpcc")
     parser.add_argument("--experiment-name", dest="experiment_name", action="store", default="")
-    parser.add_argument("--nruns", dest="nruns", action="store", default=1)
+    parser.add_argument("--nruns", dest="nruns", action="store", default=5)
 
     args = parser.parse_args()
     build_bbase = args.build_bbase
@@ -186,19 +199,21 @@ if __name__ == "__main__":
     benchbase_dir = Path.home() / "benchbase"
     output_dir = tscout_dir / "results" / benchmark_name / experiment_name
     Path(output_dir).mkdir(parents=True, exist_ok=True)
-    benchbase_output_dir = tscout_dir / "benchbase_results"
+    benchbase_output_dir = tscout_dir / "benchbase_results" / benchmark_name / experiment_name
 
     if build_pg:
         try:
             build_postgres(pg_dir)
         except Exception as err:
-            cleanup(runner_dir, err, message="Error building postgres")
+            cleanup_run(runner_dir, err, message="Error building postgres")
+            exit(1)
 
     if build_bbase:
         try:
             build_benchbase(benchbase_dir)
         except Exception as err:
-            cleanup(runner_dir, err, message="Error building benchbase")
+            cleanup_run(runner_dir, err, message="Error building benchbase")
+            exit(1)
 
     print(f"Running experiment: {experiment_name} with {nruns} runs and output_dir: {output_dir}")
     for run_id in range(nruns):
@@ -206,33 +221,35 @@ if __name__ == "__main__":
         print(f"Starting run {run_id}")
         try:
             pg_proc, pg_log_file = init_pg(pg_dir, output_dir)
-        except Exception as e:
-            cleanup(runner_dir, err, message="Error initializing postgres")
+        except Exception as err:
+            cleanup_run(runner_dir, err, message="Error initializing postgres")
+            exit(1)
 
-        benchbase_run_results_dir = output_dir / str(run_id)
+        benchbase_run_results_dir = benchbase_output_dir / str(run_id)
 
         try:
             init_benchbase(benchbase_dir, benchmark_name, benchmark_cfg_path)
         except Exception as err:
-            cleanup(runner_dir, err, message="Error initializing benchbase")
+            cleanup_run(runner_dir, err, message="Error initializing benchbase")
+            exit(1)
 
         try:
             tscout_proc = init_tscout(tscout_dir, benchmark_name, experiment_name, run_id)
         except Exception as err:
-            cleanup(runner_dir, err, message="Error initializing TScout")
+            cleanup_run(runner_dir, err, message="Error initializing TScout")
+            exit(1)
 
         try:
             exec_benchbase(
                 benchbase_dir, benchmark_name, benchbase_run_results_dir,
             )
         except Exception as err:
-            cleanup(runner_dir, err, message="Error running benchbase")
+            cleanup_run(runner_dir, err, message="Error running benchbase")
+            exit(1)
 
-        try:
-            pg_proc.kill()
-            tscout_proc.kill()
-            pg_log_file.close()
-        except Exception as err:
-            cleanup(runner_dir, err, message="Error killing processes")
-
-        print(f"Completed run {run_id}")
+        tscout_proc.send_signal(signal.SIGINT)
+        pg_proc.kill()
+        tscout_proc.kill()
+        pg_log_file.close()
+        cleanup_run(runner_dir, err=None, message=f"Finished run {run_id}")
+        time.sleep(5)
