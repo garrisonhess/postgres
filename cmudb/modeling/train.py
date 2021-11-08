@@ -106,7 +106,6 @@ if __name__ == "__main__":
     X_train, X_test, y_train, y_test = load_data(results_dir, test_size=-1)
     methods = [
         "lr",
-        "huber",
         "rf",
         "gbm",
     ]

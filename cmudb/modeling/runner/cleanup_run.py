@@ -82,4 +82,3 @@ if __name__ == "__main__":
     for file in Path(results_dir).glob("**/*"):
         shutil.chown(file, user=username)
     print("Cleanup Complete")
-

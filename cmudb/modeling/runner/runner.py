@@ -126,7 +126,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--experiment-name", dest="experiment_name", action="store", default=""
     )
-    parser.add_argument("--nruns", dest="nruns", action="store", default=5)
+    parser.add_argument("--nruns", dest="nruns", action="store", default=10)
 
     args = parser.parse_args()
     build_benchbase = args.build_benchbase
