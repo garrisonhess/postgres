@@ -95,7 +95,9 @@ def generate_readargs(feature_list):
         bpf_usdt_readarg() and bpf_usdt_readarg_p() invocations.
     """
     code = []
-    non_feature_usdt_args = 1  # Currently just plan_node_id. If any other non-feature args are added, increment this.
+    non_feature_usdt_args = (
+        1
+    )  # Currently just plan_node_id. If any other non-feature args are added, increment this.
     for idx, feature in enumerate(feature_list, 1):
         first_member = feature.bpf_tuple[0].name
         if feature.readarg_p:
@@ -198,9 +200,9 @@ def collector(collector_flags, ou_processor_queues, pid, socket_fd):
     collector_bpf["cache_misses"].open_perf_event(
         PerfType.HARDWARE, PerfHWConfig.CACHE_MISSES
     )
-    # collector_bpf["ref_cpu_cycles"].open_perf_event(
-    #     PerfType.HARDWARE, PerfHWConfig.REF_CPU_CYCLES
-    # )
+    collector_bpf["ref_cpu_cycles"].open_perf_event(
+        PerfType.HARDWARE, PerfHWConfig.REF_CPU_CYCLES
+    )
 
     heavy_hitter_ou_index = -1
     heavy_hitter_counter = 0
@@ -364,7 +366,6 @@ if __name__ == "__main__":
             ou_processor.start()
             ou_processors.append(ou_processor)
 
-
         def create_collector(child_pid, socket_fd):
             logger.info(f"Postmaster forked PID {child_pid}, "
                         f"creating its Collector.")
@@ -376,7 +377,6 @@ if __name__ == "__main__":
             collector_process.start()
             collector_processes[child_pid] = collector_process
 
-
         def destroy_collector(collector_process, child_pid):
             logger.info(f"Postmaster reaped PID {child_pid}, "
                         f"destroying its Collector.")
@@ -384,7 +384,6 @@ if __name__ == "__main__":
             collector_process.join()
             del collector_flags[child_pid]
             del collector_processes[child_pid]
-
 
         def postmaster_event(cpu, data, size):
             output_event = tscout_bpf["postmaster_events"].event(data)
@@ -400,7 +399,6 @@ if __name__ == "__main__":
             else:
                 logger.error("Unknown event type from Postmaster.")
                 raise KeyboardInterrupt
-
 
         tscout_bpf["postmaster_events"].open_perf_buffer(
             callback=postmaster_event, lost_cb=lost_something

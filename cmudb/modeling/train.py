@@ -24,9 +24,7 @@ class OUModelTrainer:
     Trainer for the ou models
     """
 
-    def __init__(
-        self, input_path,
-    ):
+    def __init__(self, input_path):
         self.input_path = input_path
         self.stats_map = {}
 
@@ -76,7 +74,9 @@ def load_data(experiment_dir, test_size=0.2):
     if test_size < 0:
         return feat_cols, target_cols, X, X, y, y
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=test_size, random_state=42
+    )
 
     return feat_cols, target_cols, X_train, X_test, y_train, y_test
 
@@ -88,20 +88,20 @@ if __name__ == "__main__":
 
     # load the data
     experiment_name = "2021-11-08_04-26-47"
-    experiment_dir = Path.home() / "postgres/cmudb/tscout/results/tpcc" / experiment_name
+    experiment_dir = (
+        Path.home() / "postgres/cmudb/tscout/results/tpcc" / experiment_name
+    )
     feat_cols, target_cols, X_train, X_test, y_train, y_test = load_data(
         experiment_dir, test_size=0.2
     )
 
-    methods = [
-        "lr",
-        "rf",
-        "gbm",
-    ]
+    methods = ["lr", "rf", "gbm"]
 
     for method in methods:
         # train the model
-        ou_model = model.Model(method=method, normalize=True, log_transform=True, robust=True)
+        ou_model = model.Model(
+            method=method, normalize=True, log_transform=True, robust=True
+        )
         ou_model.train(X_train, y_train)
 
         # predict

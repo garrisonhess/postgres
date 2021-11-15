@@ -50,7 +50,9 @@ def init_pg(pg_dir, output_dir):
     ).wait()
     Popen(args=["./build/bin/createdb -O admin benchbase"], shell=True).wait()
     Popen(
-        args=['''./build/bin/psql -d test -c "ALTER DATABASE test SET compute_query_id = 'ON';"'''],
+        args=[
+            '''./build/bin/psql -d test -c "ALTER DATABASE test SET compute_query_id = 'ON';"'''
+        ],
         shell=True,
     ).wait()
     Popen(
@@ -101,9 +103,7 @@ def build_benchbase(benchbase_dir):
         Popen(args=[f"unzip {benchbase_snapshot_path}"], shell=True).wait()
 
 
-def init_benchbase(
-    benchbase_dir, benchmark_name, input_cfg_path,
-):
+def init_benchbase(benchbase_dir, benchmark_name, input_cfg_path):
     os.chdir(benchbase_dir)
     benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
     if not os.path.exists(benchbase_snapshot_dir):
@@ -111,7 +111,9 @@ def init_benchbase(
     os.chdir(benchbase_snapshot_dir)
 
     # move runner config to benchbase and also save it in the output directory
-    benchbase_cfg_path = benchbase_snapshot_dir / f"config/postgres/{benchmark_name}_config.xml"
+    benchbase_cfg_path = (
+        benchbase_snapshot_dir / f"config/postgres/{benchmark_name}_config.xml"
+    )
     shutil.copy(input_cfg_path, benchbase_cfg_path)
     shutil.copy(input_cfg_path, output_dir)
 
@@ -132,7 +134,9 @@ def exec_benchbase(benchbase_dir, benchmark_name, benchbase_run_results_dir):
     os.chdir(benchbase_snapshot_dir)
 
     # move runner config to benchbase and also save it in the output directory
-    benchbase_cfg_path = benchbase_snapshot_dir / f"config/postgres/{benchmark_name}_config.xml"
+    benchbase_cfg_path = (
+        benchbase_snapshot_dir / f"config/postgres/{benchmark_name}_config.xml"
+    )
     if not benchbase_cfg_path.exists():
         raise Exception(
             f"Benchbase config file not found. Must be setup during init_benchbase. File: {benchbase_cfg_path}"
@@ -147,7 +151,9 @@ def exec_benchbase(benchbase_dir, benchmark_name, benchbase_run_results_dir):
 
     # Copy benchbase results to experiment results directory
     benchbase_results_dir = benchbase_snapshot_dir / "results"
-    print(f"Copying Benchbase results from {benchbase_results_dir} to {benchbase_run_results_dir}")
+    print(
+        f"Copying Benchbase results from {benchbase_results_dir} to {benchbase_run_results_dir}"
+    )
     # result_files = benchbase_results_dir.glob("**/*")
     shutil.move(benchbase_results_dir, benchbase_run_results_dir)
     # for file in result_files:
@@ -169,10 +175,18 @@ def cleanup_run(runner_dir, err, message=""):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Postgres/Benchbase/TScout")
-    parser.add_argument("--build-benchbase", dest="build_bbase", action="store_true", default=False)
-    parser.add_argument("--build-pg", dest="build_pg", action="store_true", default=False)
-    parser.add_argument("--benchmark-name", dest="benchmark_name", action="store", default="tpcc")
-    parser.add_argument("--experiment-name", dest="experiment_name", action="store", default="")
+    parser.add_argument(
+        "--build-benchbase", dest="build_bbase", action="store_true", default=False
+    )
+    parser.add_argument(
+        "--build-pg", dest="build_pg", action="store_true", default=False
+    )
+    parser.add_argument(
+        "--benchmark-name", dest="benchmark_name", action="store", default="tpcc"
+    )
+    parser.add_argument(
+        "--experiment-name", dest="experiment_name", action="store", default=""
+    )
     parser.add_argument("--nruns", dest="nruns", action="store", default=5)
 
     args = parser.parse_args()
@@ -195,11 +209,15 @@ if __name__ == "__main__":
     tscout_dir = cmudb_dir / "tscout"
     modeling_dir = cmudb_dir / "modeling"
     runner_dir = modeling_dir / "runner"
-    benchmark_cfg_path = runner_dir / "benchbase_configs" / f"{benchmark_name}_config.xml"
+    benchmark_cfg_path = (
+        runner_dir / "benchbase_configs" / f"{benchmark_name}_config.xml"
+    )
     benchbase_dir = Path.home() / "benchbase"
     output_dir = tscout_dir / "results" / benchmark_name / experiment_name
     Path(output_dir).mkdir(parents=True, exist_ok=True)
-    benchbase_output_dir = tscout_dir / "benchbase_results" / benchmark_name / experiment_name
+    benchbase_output_dir = (
+        tscout_dir / "benchbase_results" / benchmark_name / experiment_name
+    )
 
     if build_pg:
         try:
@@ -215,7 +233,9 @@ if __name__ == "__main__":
             cleanup_run(runner_dir, err, message="Error building benchbase")
             exit(1)
 
-    print(f"Running experiment: {experiment_name} with {nruns} runs and output_dir: {output_dir}")
+    print(
+        f"Running experiment: {experiment_name} with {nruns} runs and output_dir: {output_dir}"
+    )
     for run_id in range(nruns):
 
         print(f"Starting run {run_id}")
@@ -234,15 +254,15 @@ if __name__ == "__main__":
             exit(1)
 
         try:
-            tscout_proc = init_tscout(tscout_dir, benchmark_name, experiment_name, run_id)
+            tscout_proc = init_tscout(
+                tscout_dir, benchmark_name, experiment_name, run_id
+            )
         except Exception as err:
             cleanup_run(runner_dir, err, message="Error initializing TScout")
             exit(1)
 
         try:
-            exec_benchbase(
-                benchbase_dir, benchmark_name, benchbase_run_results_dir,
-            )
+            exec_benchbase(benchbase_dir, benchmark_name, benchbase_run_results_dir)
         except Exception as err:
             cleanup_run(runner_dir, err, message="Error running benchbase")
             exit(1)
