@@ -42,7 +42,7 @@ def _get_base_ml_model(method):
 
     regressor = None
     if method == "lr":
-        regressor = linear_model.LinearRegression()
+        regressor = linear_model.LinearRegression(n_jobs=8)
     if method == "huber":
         regressor = linear_model.HuberRegressor(max_iter=50)
         regressor = multioutput.MultiOutputRegressor(regressor)
@@ -50,12 +50,12 @@ def _get_base_ml_model(method):
         regressor = svm.LinearSVR()
         regressor = multioutput.MultiOutputRegressor(regressor)
     if method == "kr":
-        regressor = kernel_ridge.KernelRidge(kernel="rbf")
+        regressor = kernel_ridge.KernelRidge(kernel="rbf", n_jobs=8)
     if method == "rf":
         regressor = ensemble.RandomForestRegressor(n_estimators=50, n_jobs=8)
     if method == "gbm":
         regressor = lgb.LGBMRegressor(
-            max_depth=-1,
+            max_depth=31,
             num_leaves=1000,
             n_estimators=100,
             min_child_samples=5,

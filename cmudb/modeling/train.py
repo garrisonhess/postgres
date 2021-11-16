@@ -19,6 +19,45 @@ np.set_printoptions(edgeitems=10)
 np.set_printoptions(suppress=True)
 
 
+OU_NAMES = [
+    "ExecAgg",
+    "ExecAppend",
+    "ExecCteScan",
+    "ExecCustomScan",
+    "ExecForeignScan",
+    "ExecFunctionScan",
+    "ExecGather",
+    "ExecGatherMerge",
+    "ExecGroup",
+    "ExecHashJoinImpl",
+    "ExecIncrementalSort",
+    "ExecIndexOnlyScan",
+    "ExecIndexScan",
+    "ExecLimit",
+    "ExecLockRows",
+    "ExecMaterial",
+    "ExecMergeAppend",
+    "ExecMergeJoin",
+    "ExecModifyTable",
+    "ExecNamedTuplestoreScan",
+    "ExecNestLoop",
+    "ExecProjectSet",
+    "ExecRecursiveUnion",
+    "ExecResult",
+    "ExecSampleScan",
+    "ExecSeqScan",
+    "ExecSetOp",
+    "ExecSort",
+    "ExecSubPlan",
+    "ExecSubqueryScan",
+    "ExecTableFuncScan",
+    "ExecTidScan",
+    "ExecUnique",
+    "ExecValuesScan",
+    "ExecWindowAgg",
+    "ExecWorkTableScan"]
+
+
 class OUModelTrainer:
     """
     Trainer for the ou models
@@ -32,23 +71,31 @@ class OUModelTrainer:
         pass
 
 
-def load_data(experiment_dir, test_size=0.2):
+def load_data(experiment_dir):
+    result_paths = [fp for fp in experiment_dir.glob("**/*.csv")]
+    ou_name_to_df = dict()
+    ou_name_to_nruns = dict()
 
-    ou_name = "ExecIndexScan"
-    experiment_dir = Path.home() / "postgres/cmudb/tscout/results/tpcc/2021-11-16_00-17-38/1"
-    # experiment_dir = Path.home() / "postgres/cmudb/tscout/results_with_estate"
-    result_paths = [p for p in experiment_dir.glob("**/*.csv") if ou_name in str(p)]
-    print(result_paths)
-    df = pd.concat(map(pd.read_csv, result_paths))
+    for ou_name in OU_NAMES: 
+        ou_results = [fp for fp in result_paths if ou_name in str(fp) and os.stat(fp).st_size > 0]
+        if len(ou_results) > 0: 
+            ou_name_to_nruns[ou_name] = len(ou_results)
+            ou_name_to_df[ou_name] = pd.concat(map(pd.read_csv, ou_results))
+    
+    return ou_name_to_df, ou_name_to_nruns
 
+
+
+
+def prep_data(df, test_size=0.2):
     cols_to_remove = ["start_time", "end_time", "cpu_id", "query_id"]
     for col in df.columns:
         if df[col].nunique() == 1:
             cols_to_remove.append(col)
 
     df = df.drop(cols_to_remove, axis=1)
-    print(f"Dropped zero-variance columns: {cols_to_remove}")
-    print(f"Num Remaining: {len(df.columns)}, Num Removed {len(cols_to_remove)}")
+    # print(f"Dropped zero-variance columns: {cols_to_remove}")
+    # print(f"Num Remaining: {len(df.columns)}, Num Removed {len(cols_to_remove)}")
 
     all_target_cols = [
         "cpu_cycles",
@@ -66,11 +113,8 @@ def load_data(experiment_dir, test_size=0.2):
     feat_cols = [col for col in df.columns if col not in all_target_cols]
     target_cols = [col for col in df.columns if col in all_target_cols]
 
-    print(f"OU Name: {ou_name}, Features: {feat_cols}")
     X = df[feat_cols].values
     y = df[target_cols].values
-    print(f"X shape: {X.shape}")
-    print(f"Y shape: {y.shape}")
 
     # bypass train-test split
     if test_size < 0:
@@ -84,56 +128,87 @@ def load_data(experiment_dir, test_size=0.2):
 
 
 if __name__ == "__main__":
-    aparser = argparse.ArgumentParser(description="OU Model Trainer")
-    aparser.add_argument("--log", default="info", help="The logging level")
-    args = aparser.parse_args()
+    parser = argparse.ArgumentParser(description="OU Model Trainer")
+    parser.add_argument("--log", default="info", help="The logging level")
+    parser.add_argument("--benchmark-name", default="tpcc", help="Benchmarks include: tpcc, tpch")
+    parser.add_argument("--experiment-name", default="", help="Experiment Name")
+    args = parser.parse_args()
+    benchmark_name = args.benchmark_name
+    experiment_name = args.experiment_name
 
     # load the data
-    experiment_name = "2021-11-08_04-26-47"
-    # experiment_dir = (
-    #     Path.home() / "postgres/cmudb/tscout/results/tpcc" / experiment_name
-    # )
-    experiment_dir = Path.home() / "postgres/cmudb/tscout/"
-
-    feat_cols, target_cols, X_train, X_test, y_train, y_test = load_data(
-        experiment_dir, test_size=0.2
+    if experiment_name == "":
+        print("No input experiment")
+        experiment_name = "2021-11-16_00-17-38"
+    
+    experiment_dir = (
+        Path.home() / "postgres/cmudb/tscout/results/" / benchmark_name / experiment_name
     )
 
+    evaluation_dir = Path.home() / "postgres/cmudb/modeling/evaluation"  / benchmark_name / experiment_name
+    evaluation_dir.mkdir(parents=True, exist_ok=True)
+
+    predictions_dir = evaluation_dir / "predictions"
+    predictions_dir.mkdir(parents=True, exist_ok=True)
+    
     methods = ["lr", "rf", "gbm"]
+    ou_name_to_df, ou_name_to_nruns = load_data(experiment_dir)
+            
+    for ou_name in ou_name_to_df.keys(): 
+        feat_cols, target_cols, X_train, X_test, y_train, y_test = prep_data(ou_name_to_df[ou_name], test_size=0.2)
+        ou_eval_dir = evaluation_dir / ou_name
+        ou_eval_dir.mkdir(exist_ok=True)
 
-    for method in methods:
-        # train the model
-        ou_model = model.Model(
-            method=method, normalize=True, log_transform=True, robust=True
-        )
-        ou_model.train(X_train, y_train)
+        if X_train.shape[1] == 0 or y_train.shape[1] == 0:
+            print(f"{ou_name} has no valid training data, skipping")
+            continue
 
-        # predict
-        y_train_pred = ou_model.predict(X_train)
-        y_test_pred = ou_model.predict(X_test)
+        for method in methods:
+            ou_model = model.Model(
+                method=method, normalize=True, log_transform=False, robust=False
+            )
+            ou_model.train(X_train, y_train)
+            y_train_pred = ou_model.predict(X_train)
+            y_test_pred = ou_model.predict(X_test)
 
-        print(f"\n============= Model Summary for Model: {method} =============")
-        for target_idx, target in enumerate(target_cols):
-            print(f"===== Target: {target} =====")
-            train_target_pred = y_train_pred[:, target_idx]
-            train_target_true = y_test[:, target_idx]
-            mse = mean_squared_error(train_target_pred, train_target_pred)
-            mae = mean_absolute_error(train_target_pred, train_target_pred)
-            exp_var = explained_variance_score(train_target_pred, train_target_pred)
-            r2 = r2_score(train_target_pred, train_target_pred)
-            print(f"Train MSE: {round(mse, 2)}")
-            print(f"Train MAE: {round(mae, 2)}")
-            print(f"Train Explained Variance: {round(exp_var, 2)}")
-            print(f"Train R-Squared: {round(r2, 2)}")
+            # save the training and test predictions
+            train_preds_path = ou_eval_dir / f"{ou_name}_{method}_train_preds.csv"
+            with open(train_preds_path, "w+") as preds_file:
+                temp = np.concatenate((X_train, y_train, y_train_pred), axis=1)
+                train_result_df = pd.DataFrame(temp, columns=feat_cols + target_cols + [f"pred_{col}" for col in target_cols])
+                train_result_df.to_csv(preds_file, float_format="%.1f", index=False)
+            
+            test_preds_path = ou_eval_dir / f"{ou_name}_{method}_test_preds.csv"
+            with open(test_preds_path, "w+") as preds_file:
+                temp = np.concatenate((X_test, y_test, y_test_pred), axis=1)
+                test_result_df = pd.DataFrame(temp, columns=feat_cols + target_cols + [f"pred_{col}" for col in target_cols])
+                test_result_df.to_csv(preds_file, float_format="%.1f", index=False)
 
-            test_target_pred = y_test_pred[:, target_idx]
-            test_target_true = y_test[:, target_idx]
-            mse = mean_squared_error(test_target_true, test_target_pred)
-            mae = mean_absolute_error(test_target_true, test_target_pred)
-            exp_var = explained_variance_score(test_target_true, test_target_pred)
-            r2 = r2_score(test_target_true, test_target_pred)
-            print(f"Test MSE: {round(mse, 2)}")
-            print(f"Test MAE: {round(mae, 2)}")
-            print(f"Test Explained Variance: {round(exp_var, 2)}")
-            print(f"Test R-Squared: {round(r2, 2)}")
-        print("======================== END SUMMARY ========================\n")
+            ou_eval_path = ou_eval_dir / f"{ou_name}_{method}_summary.txt"
+            with open(ou_eval_path, "w+") as eval_file:
+                eval_file.write(f"\n============= Model Summary for {ou_name} Model: {method} =============\n")
+                eval_file.write(f"Num Runs used: {ou_name_to_nruns[ou_name]}\n")
+                eval_file.write(f"Features used: {feat_cols}\n")
+                eval_file.write(f"Num Features used: {len(feat_cols)}\n")
+                eval_file.write(f"Targets estimated: {target_cols}\n")
+
+                for target_idx, target in enumerate(target_cols):
+                    eval_file.write(f"===== Target: {target} =====\n")
+                    train_target_pred = y_train_pred[:, target_idx]
+                    train_target_true = y_train[:, target_idx]
+                    mse = mean_squared_error(train_target_true, train_target_pred)
+                    mae = mean_absolute_error(train_target_true, train_target_pred)
+                    r2 = r2_score(train_target_true, train_target_pred)
+                    eval_file.write(f"Train MSE: {round(mse, 2)}\n")
+                    eval_file.write(f"Train MAE: {round(mae, 2)}\n")
+                    eval_file.write(f"Train R^2: {round(r2, 2)}\n")
+
+                    test_target_pred = y_test_pred[:, target_idx]
+                    test_target_true = y_test[:, target_idx]
+                    mse = mean_squared_error(test_target_true, test_target_pred)
+                    mae = mean_absolute_error(test_target_true, test_target_pred)
+                    r2 = r2_score(test_target_true, test_target_pred)
+                    eval_file.write(f"Test MSE: {round(mse, 2)}\n")
+                    eval_file.write(f"Test MAE: {round(mae, 2)}\n")
+                    eval_file.write(f"Test R^2: {round(r2, 2)}\n")
+                eval_file.write("======================== END SUMMARY ========================\n")
