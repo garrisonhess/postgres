@@ -170,12 +170,11 @@ if __name__ == "__main__":
             y_train_pred = ou_model.predict(X_train)
             y_test_pred = ou_model.predict(X_test)
 
-            # save the training and test predictions
-            train_preds_path = ou_eval_dir / f"{ou_name}_{method}_train_preds.csv"
-            # pair columns for readable outputs
+            # pair and reorder the target columns for readable outputs
             paired_cols = zip(target_cols, [f"pred_{col}" for col in target_cols])
             reordered_cols = feat_cols + list(itertools.chain.from_iterable(paired_cols))
 
+            train_preds_path = ou_eval_dir / f"{ou_name}_{method}_train_preds.csv"
             with open(train_preds_path, "w+") as preds_file:
                 temp = np.concatenate((X_train, y_train, y_train_pred), axis=1)
                 train_result_df = pd.DataFrame(temp, columns=feat_cols + target_cols + [f"pred_{col}" for col in target_cols])
