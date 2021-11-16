@@ -12,6 +12,7 @@ from sklearn.metrics import (
     mean_squared_error,
     r2_score,
 )
+import itertools
 import model
 
 np.set_printoptions(precision=4)
@@ -138,8 +139,9 @@ if __name__ == "__main__":
 
     # load the data
     if experiment_name == "":
-        print("No input experiment")
         experiment_name = "2021-11-16_00-17-38"
+        print(f"No input experiment, using experiment: {experiment_name}")
+        
     
     experiment_dir = (
         Path.home() / "postgres/cmudb/tscout/results/" / benchmark_name / experiment_name
@@ -147,9 +149,6 @@ if __name__ == "__main__":
 
     evaluation_dir = Path.home() / "postgres/cmudb/modeling/evaluation"  / benchmark_name / experiment_name
     evaluation_dir.mkdir(parents=True, exist_ok=True)
-
-    predictions_dir = evaluation_dir / "predictions"
-    predictions_dir.mkdir(parents=True, exist_ok=True)
     
     methods = ["lr", "rf", "gbm"]
     ou_name_to_df, ou_name_to_nruns = load_data(experiment_dir)
@@ -173,16 +172,20 @@ if __name__ == "__main__":
 
             # save the training and test predictions
             train_preds_path = ou_eval_dir / f"{ou_name}_{method}_train_preds.csv"
+            # pair columns for readable outputs
+            paired_cols = zip(target_cols, [f"pred_{col}" for col in target_cols])
+            reordered_cols = feat_cols + list(itertools.chain.from_iterable(paired_cols))
+
             with open(train_preds_path, "w+") as preds_file:
                 temp = np.concatenate((X_train, y_train, y_train_pred), axis=1)
                 train_result_df = pd.DataFrame(temp, columns=feat_cols + target_cols + [f"pred_{col}" for col in target_cols])
-                train_result_df.to_csv(preds_file, float_format="%.1f", index=False)
+                train_result_df[reordered_cols].to_csv(preds_file, float_format="%.1f", index=False)
             
             test_preds_path = ou_eval_dir / f"{ou_name}_{method}_test_preds.csv"
             with open(test_preds_path, "w+") as preds_file:
                 temp = np.concatenate((X_test, y_test, y_test_pred), axis=1)
                 test_result_df = pd.DataFrame(temp, columns=feat_cols + target_cols + [f"pred_{col}" for col in target_cols])
-                test_result_df.to_csv(preds_file, float_format="%.1f", index=False)
+                test_result_df[reordered_cols].to_csv(preds_file, float_format="%.1f", index=False)
 
             ou_eval_path = ou_eval_dir / f"{ou_name}_{method}_summary.txt"
             with open(ou_eval_path, "w+") as eval_file:
