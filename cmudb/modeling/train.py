@@ -35,6 +35,8 @@ class OUModelTrainer:
 def load_data(experiment_dir, test_size=0.2):
 
     ou_name = "ExecIndexScan"
+    experiment_dir = Path.home() / "postgres/cmudb/tscout/results/tpcc/2021-11-16_00-17-38/1"
+    # experiment_dir = Path.home() / "postgres/cmudb/tscout/results_with_estate"
     result_paths = [p for p in experiment_dir.glob("**/*.csv") if ou_name in str(p)]
     print(result_paths)
     df = pd.concat(map(pd.read_csv, result_paths))
@@ -88,9 +90,11 @@ if __name__ == "__main__":
 
     # load the data
     experiment_name = "2021-11-08_04-26-47"
-    experiment_dir = (
-        Path.home() / "postgres/cmudb/tscout/results/tpcc" / experiment_name
-    )
+    # experiment_dir = (
+    #     Path.home() / "postgres/cmudb/tscout/results/tpcc" / experiment_name
+    # )
+    experiment_dir = Path.home() / "postgres/cmudb/tscout/"
+
     feat_cols, target_cols, X_train, X_test, y_train, y_test = load_data(
         experiment_dir, test_size=0.2
     )
@@ -105,19 +109,31 @@ if __name__ == "__main__":
         ou_model.train(X_train, y_train)
 
         # predict
-        y_pred = ou_model.predict(X_test)
+        y_train_pred = ou_model.predict(X_train)
+        y_test_pred = ou_model.predict(X_test)
 
         print(f"\n============= Model Summary for Model: {method} =============")
         for target_idx, target in enumerate(target_cols):
-            target_pred = y_pred[:, target_idx]
-            target_true = y_test[:, target_idx]
-            mse = mean_squared_error(target_true, target_pred)
-            mae = mean_absolute_error(target_true, target_pred)
-            exp_var = explained_variance_score(target_true, target_pred)
-            r2 = r2_score(target_true, target_pred)
             print(f"===== Target: {target} =====")
-            print(f"MSE: {round(mse, 2)}")
-            print(f"MAE: {round(mae, 2)}")
-            print(f"Explained Variance: {round(exp_var, 2)}")
-            print(f"R-Squared: {round(r2, 2)}")
+            train_target_pred = y_train_pred[:, target_idx]
+            train_target_true = y_test[:, target_idx]
+            mse = mean_squared_error(train_target_pred, train_target_pred)
+            mae = mean_absolute_error(train_target_pred, train_target_pred)
+            exp_var = explained_variance_score(train_target_pred, train_target_pred)
+            r2 = r2_score(train_target_pred, train_target_pred)
+            print(f"Train MSE: {round(mse, 2)}")
+            print(f"Train MAE: {round(mae, 2)}")
+            print(f"Train Explained Variance: {round(exp_var, 2)}")
+            print(f"Train R-Squared: {round(r2, 2)}")
+
+            test_target_pred = y_test_pred[:, target_idx]
+            test_target_true = y_test[:, target_idx]
+            mse = mean_squared_error(test_target_true, test_target_pred)
+            mae = mean_absolute_error(test_target_true, test_target_pred)
+            exp_var = explained_variance_score(test_target_true, test_target_pred)
+            r2 = r2_score(test_target_true, test_target_pred)
+            print(f"Test MSE: {round(mse, 2)}")
+            print(f"Test MAE: {round(mae, 2)}")
+            print(f"Test Explained Variance: {round(exp_var, 2)}")
+            print(f"Test R-Squared: {round(r2, 2)}")
         print("======================== END SUMMARY ========================\n")
