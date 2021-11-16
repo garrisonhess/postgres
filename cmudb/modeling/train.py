@@ -19,6 +19,7 @@ np.set_printoptions(precision=4)
 np.set_printoptions(edgeitems=10)
 np.set_printoptions(suppress=True)
 
+BENCHMARK_NAMES = ["tpcc", "tpch", "ycsb", "wikipedia", "voter", "twitter", "tatp", "smallbank", "sibench", "seats", "resourcestresser", "noop", "hyadapt", "epinions", "chbenchmark", "auctionmark"]
 
 OU_NAMES = [
     "ExecAgg",
@@ -77,15 +78,14 @@ def load_data(experiment_dir):
     ou_name_to_df = dict()
     ou_name_to_nruns = dict()
 
-    for ou_name in OU_NAMES: 
-        ou_results = [fp for fp in result_paths if ou_name in str(fp) and os.stat(fp).st_size > 0]
+    for ou_name in OU_NAMES:
+        ou_results = [fp for fp in result_paths if fp.name == f"{ou_name}.csv" and os.stat(fp).st_size > 0]
         if len(ou_results) > 0: 
+            # print(f"Found {len(ou_results)} run(s) for {ou_name}")
             ou_name_to_nruns[ou_name] = len(ou_results)
             ou_name_to_df[ou_name] = pd.concat(map(pd.read_csv, ou_results))
     
     return ou_name_to_df, ou_name_to_nruns
-
-
 
 
 def prep_data(df, test_size=0.2):
@@ -131,28 +131,35 @@ def prep_data(df, test_size=0.2):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="OU Model Trainer")
     parser.add_argument("--log", default="info", help="The logging level")
-    parser.add_argument("--benchmark-name", default="tpcc", help="Benchmarks include: tpcc, tpch")
-    parser.add_argument("--experiment-name", default="", help="Experiment Name")
+    parser.add_argument("--benchmark-name", default="tpcc", help=f"Benchmarks include: {BENCHMARK_NAMES}")
+    parser.add_argument("--experiment-name", required=False, help="Experiment Name")
     args = parser.parse_args()
     benchmark_name = args.benchmark_name
     experiment_name = args.experiment_name
 
-    # load the data
-    if experiment_name == "":
-        experiment_name = "2021-11-16_00-17-38"
-        print(f"No input experiment, using experiment: {experiment_name}")
-        
+    if benchmark_name not in BENCHMARK_NAMES:
+        raise Exception(f"Benchmark name {benchmark_name} not supported")
     
-    experiment_dir = (
-        Path.home() / "postgres/cmudb/tscout/results/" / benchmark_name / experiment_name
-    )
+    benchmark_results_dir = Path.home() / "postgres/cmudb/tscout/results/" / benchmark_name
 
+    # if no experiment name is provided, try to find one
+    if experiment_name is None:
+        experiment_list = sorted([exp_path.name for exp_path in benchmark_results_dir.glob("*")])
+        print(f"{benchmark_name} experiments: {experiment_list}")
+
+        if len(experiment_list) == 0:
+            raise Exception(f"No experiments found for {benchmark_name}")
+        
+        experiment_name = experiment_list[-1]
+        print(f"Experiment name was not provided, using experiment: {experiment_name}")
+
+    experiment_dir = benchmark_results_dir / experiment_name
     evaluation_dir = Path.home() / "postgres/cmudb/modeling/evaluation"  / benchmark_name / experiment_name
     evaluation_dir.mkdir(parents=True, exist_ok=True)
     
     methods = ["lr", "rf", "gbm"]
     ou_name_to_df, ou_name_to_nruns = load_data(experiment_dir)
-            
+    
     for ou_name in ou_name_to_df.keys(): 
         feat_cols, target_cols, X_train, X_test, y_train, y_test = prep_data(ou_name_to_df[ou_name], test_size=0.2)
         ou_eval_dir = evaluation_dir / ou_name
@@ -175,16 +182,16 @@ if __name__ == "__main__":
             reordered_cols = feat_cols + list(itertools.chain.from_iterable(paired_cols))
 
             train_preds_path = ou_eval_dir / f"{ou_name}_{method}_train_preds.csv"
-            with open(train_preds_path, "w+") as preds_file:
+            with open(train_preds_path, "w+") as train_preds_file:
                 temp = np.concatenate((X_train, y_train, y_train_pred), axis=1)
                 train_result_df = pd.DataFrame(temp, columns=feat_cols + target_cols + [f"pred_{col}" for col in target_cols])
-                train_result_df[reordered_cols].to_csv(preds_file, float_format="%.1f", index=False)
+                train_result_df[reordered_cols].to_csv(train_preds_file, float_format="%.1f", index=False)
             
             test_preds_path = ou_eval_dir / f"{ou_name}_{method}_test_preds.csv"
-            with open(test_preds_path, "w+") as preds_file:
+            with open(test_preds_path, "w+") as test_preds_file:
                 temp = np.concatenate((X_test, y_test, y_test_pred), axis=1)
                 test_result_df = pd.DataFrame(temp, columns=feat_cols + target_cols + [f"pred_{col}" for col in target_cols])
-                test_result_df[reordered_cols].to_csv(preds_file, float_format="%.1f", index=False)
+                test_result_df[reordered_cols].to_csv(test_preds_file, float_format="%.1f", index=False)
 
             ou_eval_path = ou_eval_dir / f"{ou_name}_{method}_summary.txt"
             with open(ou_eval_path, "w+") as eval_file:

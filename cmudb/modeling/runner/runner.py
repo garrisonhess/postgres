@@ -63,6 +63,10 @@ def init_pg(pg_dir, results_dir):
     return pg_proc, pg_log_file
 
 
+def pg_prewarm(): 
+    pass
+
+
 def init_tscout(tscout_dir, results_dir):
     print(f"Starting TScout for {benchmark_name}, {experiment_name}, run_id: {run_id}")
     os.chdir(tscout_dir)
@@ -184,7 +188,7 @@ if __name__ == "__main__":
     if nruns < 0 or nruns > 10:
         raise Exception("Invalid nruns: {runs}")
 
-    valid_benchmarks = ["tpcc", "tpch"]
+    valid_benchmarks = ["tpcc", "tpch", "ycsb", "wikipedia", "voter", "twitter", "tatp", "smallbank", "sibench", "seats", "resourcestresser", "noop", "hyadapt", "epinions", "chbenchmark", "auctionmark"]
     if benchmark_name not in valid_benchmarks:
         raise ValueError(f"Invalid benchmark name: {benchmark_name}")
 
@@ -243,7 +247,8 @@ if __name__ == "__main__":
         except Exception as err:
             cleanup_run(runner_dir, err, message="Error running benchbase")
             exit(1)
-
+        
+        time.sleep(5)
         tscout_proc.send_signal(signal.SIGINT)
         pg_proc.kill()
         tscout_proc.kill()
