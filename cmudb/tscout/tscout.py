@@ -263,18 +263,18 @@ def lost_something(num_lost):
 
 
 
-def processor(ou, buffered_strings, benchmark_name=None, experiment_name=None, run_id=None):
+def processor(ou, buffered_strings, outdir=None):
     setproctitle.setproctitle("{} Processor".format(ou.name()))
 
     # Open output file, with the name based on the OU.
-    if benchmark_name is None:
+    if outdir is None:
         file = open("./{}.csv".format(ou.name()), "w")
     else: 
-        Path(f"./results/{benchmark_name}/{experiment_name}/{run_id}").mkdir(
+        Path(outdir).mkdir(
             parents=True, exist_ok=True
         )
         file = open(
-            f"./results/{benchmark_name}/{experiment_name}/{run_id}/{ou.name()}.csv", "w"
+            f"{outdir}/{ou.name()}.csv", "w"
         )
 
     # Write the OU's feature columns for CSV header,
@@ -355,7 +355,7 @@ if __name__ == "__main__":
             ou_processor_queue = mp.Queue()
             ou_processor_queues.append(ou_processor_queue)
             ou_processor = mp.Process(target=processor,
-                                    args=(ou, ou_processor_queue, benchmark_name, experiment_name, run_id),)
+                                    args=(ou, ou_processor_queue, outdir),)
             ou_processor.start()
             ou_processors.append(ou_processor)
 
