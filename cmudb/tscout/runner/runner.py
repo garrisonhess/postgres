@@ -95,11 +95,8 @@ def check_orphans():
         if "tscout" in proc_name:
             tscout_procs.append(proc)
 
-    if len(pg_procs) > 0:
-        raise Exception(f"Aborting: there are active postgres processes from previous runs: {pg_procs}")
-
-    if len(tscout_procs) > 0:
-        raise Exception(f"Aborting because there are active tscout processes from previous runs: {tscout_procs}")
+    assert len(pg_procs) == 0, f"Found active postgres processes from previous runs: {pg_procs}"
+    assert len(tscout_procs) == 0, f"Found active tscout processes from previous runs: {tscout_procs}"
 
 
 def init_pg(pg_dir, results_dir, runner_dir):
@@ -230,7 +227,7 @@ def init_benchbase(benchbase_dir, benchmark_name, input_cfg_path, benchbase_resu
         bbase_proc = Popen(args=[benchbase_cmd], shell=True)
         bbase_proc.wait()
         if bbase_proc.returncode != 0:
-            raise Exception(f"Benchbase failed with return code: {bbase_proc.returncode}")
+            raise RuntimeError(f"Benchbase failed with return code: {bbase_proc.returncode}")
         print(f"Initialized Benchbase for Benchmark: {benchmark_name}")
     except Exception as err:
         cleanup(runner_dir, err, message="Error initializing Benchbase")
@@ -259,7 +256,7 @@ def exec_benchbase(benchbase_dir, benchmark_name, benchbase_results_dir, runner_
         bbase_proc = Popen(args=[benchbase_cmd], shell=True)
         bbase_proc.wait()
         if bbase_proc.returncode != 0:
-            raise Exception(f"Benchbase failed with return code: {bbase_proc.returncode}")
+            raise RuntimeError(f"Benchbase failed with return code: {bbase_proc.returncode}")
 
         # Copy benchbase results to experiment results directory
         benchbase_stats_dir = benchbase_snapshot_dir / "results"
@@ -289,7 +286,7 @@ def cleanup(runner_dir, err, message=""):
 
 
 def run(build_pg, build_bbase, benchmark_name, experiment_name, nruns, prewarm):
-    """Run an experiment (potentially multiple times)"""
+    """Run an experiment"""
 
     pg_dir = Path.home() / "postgres"
     cmudb_dir = pg_dir / "cmudb"
@@ -299,9 +296,6 @@ def run(build_pg, build_bbase, benchmark_name, experiment_name, nruns, prewarm):
     benchmark_cfg_path = runner_dir / "benchbase_configs" / f"{benchmark_name}_config.xml"
     experiment_dir = tscout_dir / "results" / benchmark_name / experiment_name
     Path(experiment_dir).mkdir(parents=True, exist_ok=True)
-
-    # Check for orphaned processes from prior runs as they cause the runner to fail
-    check_orphans()
 
     if build_pg:
         build_postgres(pg_dir, runner_dir)
@@ -313,12 +307,14 @@ def run(build_pg, build_bbase, benchmark_name, experiment_name, nruns, prewarm):
 
     for run_id in range(nruns):
         print(f"Starting run {run_id}")
+        # Check for orphaned processes from prior runs as they cause the runner to fail
+        check_orphans()
+
+        # Create output directories for this run
         results_dir = experiment_dir / str(run_id)
         Path(results_dir).mkdir(exist_ok=True)
         benchbase_results_dir = results_dir / "benchbase"
         Path(benchbase_results_dir).mkdir(exist_ok=True)
-
-        check_orphans()
 
         pg_log_file = init_pg(pg_dir, results_dir, runner_dir)
         init_benchbase(benchbase_dir, benchmark_name, benchmark_cfg_path, benchbase_results_dir, runner_dir)
@@ -353,7 +349,7 @@ if __name__ == "__main__":
     prewarm = not args.no_prewarm
 
     if nruns <= 0 or nruns > 10:
-        raise Exception("Invalid nruns: {runs}")
+        raise ValueError("Invalid nruns: {runs}")
 
     if benchmark_name not in BENCHMARK_NAMES:
         raise ValueError(f"Invalid benchmark name: {benchmark_name}")
