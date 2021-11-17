@@ -143,7 +143,7 @@ def generate_markers(operation, ou_index):
 
 def collector(collector_flags, ou_processor_queues, pid, socket_fd):
     global helper_struct_defs
-    setproctitle.setproctitle("{} Collector".format(pid))
+    setproctitle.setproctitle("{} TScout Collector".format(pid))
 
     # Read the C code for the Collector.
     with open('collector.c', 'r') as collector_file:
@@ -264,18 +264,14 @@ def lost_something(num_lost):
 
 
 def processor(ou, buffered_strings, outdir=None):
-    setproctitle.setproctitle("{} Processor".format(ou.name()))
+    setproctitle.setproctitle("TScout Processor {}".format(ou.name()))
 
     # Open output file, with the name based on the OU.
     if outdir is None:
         file = open("./{}.csv".format(ou.name()), "w")
     else: 
-        Path(outdir).mkdir(
-            parents=True, exist_ok=True
-        )
-        file = open(
-            f"{outdir}/{ou.name()}.csv", "w"
-        )
+        Path(outdir).mkdir(parents=True, exist_ok=True)
+        file = open(f"{outdir}/{ou.name()}.csv", "w")
 
     # Write the OU's feature columns for CSV header,
     # with an additional separator before resource metrics columns.
