@@ -61,11 +61,8 @@ BENCHMARK_TABLES = {
 
 
 def build_postgres(pg_dir):
-    """Build Postgres (and extensions)
-
-    Args:
-        pg_dir ([Path]): [Postgres root directory]
-    """
+    """Build Postgres (and extensions)"""
+    
     os.chdir(pg_dir)
     print("Building Postgres")
     Popen(args=["./cmudb/build/configure.sh release"], shell=True).wait()
@@ -105,16 +102,8 @@ def check_orphans():
 
 
 def init_pg(pg_dir, results_dir):
-    """Initialize Postgres
+    """Initialize Postgres"""
 
-    TODO: change psql commands to use psycopg2
-    Args:
-        pg_dir (Path): Postgres root directory
-        results_dir (Path): directory to store postgres logs (along with all other results)
-
-    Returns:
-        [Process]: postgres process
-    """
     os.chdir(pg_dir)
     pg_log_file = open(results_dir / "pg_log.txt", "w")
 
@@ -133,6 +122,7 @@ def init_pg(pg_dir, results_dir):
     time.sleep(5)
     print("Started Postgres")
 
+    # TODO: change psql commands to use psycopg2
     Popen(args=["./build/bin/createdb test"], shell=True).wait()
     Popen(
         args=[
@@ -162,6 +152,8 @@ def init_pg(pg_dir, results_dir):
 
 
 def pg_prewarm(pg_dir, benchmark_name):
+    """Prewarm Postgres so the buffer pool and OS page cache has the workload data available"""
+    
     os.chdir(pg_dir)
     print(f"Prewarming Postgres")
     Popen(
@@ -192,11 +184,6 @@ def init_tscout(tscout_dir, results_dir):
 
 
 def build_benchbase(benchbase_dir):
-    """[summary]
-
-    Args:
-        benchbase_dir ([type]): [description]
-    """
     os.chdir(benchbase_dir)
     benchbase_snapshot_path = benchbase_dir / "target" / "benchbase-2021-SNAPSHOT.zip"
     benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
@@ -210,20 +197,8 @@ def build_benchbase(benchbase_dir):
 
 
 def init_benchbase(benchbase_dir, benchmark_name, input_cfg_path, benchbase_results_dir):
-    """[summary]
+    """Initialize Benchbase and load benchmark data"""
 
-    Args:
-        benchbase_dir ([type]): [description]
-        benchmark_name ([type]): [description]
-        input_cfg_path ([type]): [description]
-        benchbase_results_dir ([type]): [description]
-
-    Raises:
-        Exception: [description]
-
-    Returns:
-        [type]: [description]
-    """
     os.chdir(benchbase_dir)
     benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
     if not os.path.exists(benchbase_snapshot_dir):
@@ -245,20 +220,8 @@ def init_benchbase(benchbase_dir, benchmark_name, input_cfg_path, benchbase_resu
 
 
 def exec_benchbase(benchbase_dir, benchmark_name, benchbase_results_dir):
-    """[summary]
+    """Execute Benchbase"""
 
-    Args:
-        benchbase_dir ([type]): [description]
-        benchmark_name ([type]): [description]
-        benchbase_results_dir ([type]): [description]
-
-    Raises:
-        Exception: [description]
-        Exception: [description]
-
-    Returns:
-        [type]: [description]
-    """
     os.chdir(benchbase_dir)
     benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
     if not os.path.exists(benchbase_snapshot_dir):
@@ -282,18 +245,11 @@ def exec_benchbase(benchbase_dir, benchmark_name, benchbase_results_dir):
     # Copy benchbase results to experiment results directory
     benchbase_stats_dir = benchbase_snapshot_dir / "results"
     print(f"Moving Benchbase results from {benchbase_stats_dir} to {benchbase_results_dir}")
-    print(f"Benchbase results dir: {benchbase_stats_dir}")
     shutil.move(str(benchbase_stats_dir), str(benchbase_results_dir))
 
 
 def cleanup_run(runner_dir, err, message=""):
-    """[summary]
-
-    Args:
-        runner_dir ([type]): [description]
-        err ([type]): [description]
-        message (str, optional): [description]. Defaults to "".
-    """
+    """Clean up the TScout and Postgres processes after either a successful or failed run"""
     if len(message) > 0:
         print(message)
 
@@ -307,6 +263,7 @@ def cleanup_run(runner_dir, err, message=""):
 
 
 def run(build_pg, build_bbase, benchmark_name, experiment_name, nruns, prewarm):
+    """Run an experiment (potentially multiple times)"""
     pg_dir = Path.home() / "postgres"
     cmudb_dir = pg_dir / "cmudb"
     tscout_dir = cmudb_dir / "tscout"
@@ -385,12 +342,7 @@ def run(build_pg, build_bbase, benchmark_name, experiment_name, nruns, prewarm):
 
 
 if __name__ == "__main__":
-    """[summary]
-
-    Raises:
-        Exception: [description]
-        ValueError: [description]
-    """
+    """Parse command line arguments and run the experiment"""
     parser = argparse.ArgumentParser(description="Run Postgres/Benchbase/TScout")
     parser.add_argument("--build-pg", action="store_true", default=False)
     parser.add_argument("--build-bbase", action="store_true", default=False)
