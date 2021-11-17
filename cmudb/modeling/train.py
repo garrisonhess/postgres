@@ -6,18 +6,9 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import (
-    explained_variance_score,
-    mean_absolute_error,
-    mean_squared_error,
-    r2_score,
-)
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import itertools
 import model
-
-np.set_printoptions(precision=4)
-np.set_printoptions(edgeitems=10)
-np.set_printoptions(suppress=True)
 
 BENCHMARK_NAMES = ["tpcc", "tpch", "ycsb", "wikipedia", "voter", "twitter", "tatp", "smallbank", "sibench", "seats", "resourcestresser", "noop", "hyadapt", "epinions", "chbenchmark", "auctionmark"]
 
@@ -58,19 +49,6 @@ OU_NAMES = [
     "ExecValuesScan",
     "ExecWindowAgg",
     "ExecWorkTableScan"]
-
-
-class OUModelTrainer:
-    """
-    Trainer for the ou models
-    """
-
-    def __init__(self, input_path):
-        self.input_path = input_path
-        self.stats_map = {}
-
-    def train(self):
-        pass
 
 
 def load_data(experiment_dir):
@@ -121,9 +99,7 @@ def prep_data(df, test_size=0.2):
     if test_size < 0:
         return feat_cols, target_cols, X, X, y, y
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=42
-    )
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
 
     return feat_cols, target_cols, X_train, X_test, y_train, y_test
 
@@ -138,7 +114,7 @@ if __name__ == "__main__":
     experiment_name = args.experiment_name
 
     if benchmark_name not in BENCHMARK_NAMES:
-        raise Exception(f"Benchmark name {benchmark_name} not supported")
+        raise ValueError(f"Benchmark name {benchmark_name} not supported")
     
     benchmark_results_dir = Path.home() / "postgres/cmudb/tscout/results/" / benchmark_name
 
@@ -146,10 +122,7 @@ if __name__ == "__main__":
     if experiment_name is None:
         experiment_list = sorted([exp_path.name for exp_path in benchmark_results_dir.glob("*")])
         print(f"{benchmark_name} experiments: {experiment_list}")
-
-        if len(experiment_list) == 0:
-            raise Exception(f"No experiments found for {benchmark_name}")
-        
+        assert len(experiment_list) > 0, f"No experiments found for {benchmark_name}"
         experiment_name = experiment_list[-1]
         print(f"Experiment name was not provided, using experiment: {experiment_name}")
 
