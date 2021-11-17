@@ -5,44 +5,46 @@ import shutil
 from pathlib import Path
 import argparse
 
-LISTENER_NAMES = [
-    "ExecAgg",
-    "ExecAppe",
-    "ExecCteS",
-    "ExecCust",
-    "ExecFore",
-    "ExecFunc",
-    "ExecGath",
-    "ExecGath",
-    "ExecGrou",
-    "ExecHash",
-    "ExecIncr",
-    "ExecInde",
-    "ExecInde",
-    "ExecLimi",
-    "ExecLock",
-    "ExecMate",
-    "ExecMerg",
-    "ExecMerg",
-    "ExecModi",
-    "ExecName",
-    "ExecNest",
-    "ExecProj",
-    "ExecRecu",
-    "ExecResu",
-    "ExecSamp",
-    "ExecSeqS",
-    "ExecSetO",
-    "ExecSort",
-    "ExecSubP",
-    "ExecSubq",
-    "ExecTabl",
-    "ExecTidS",
-    "ExecUniq",
-    "ExecValu",
-    "ExecWind",
-    "ExecWork",
+# TScout Processor Names
+PROCESSOR_NAMES = [
+    "ExecAgg Processor",
+    "ExecAppend Processor",
+    "ExecCteScan Processor",
+    "ExecCustomScan Processor",
+    "ExecForeignScan Processor",
+    "ExecFunctionScan Processor",
+    "ExecGather Processor",
+    "ExecGatherMerge Processor",
+    "ExecGroup Processor",
+    "ExecHashJoinImpl Processor",
+    "ExecIncrementalSort Processor",
+    "ExecIndexOnlyScan Processor",
+    "ExecIndexScan Processor",
+    "ExecLimit Processor",
+    "ExecLockRows Processor",
+    "ExecMaterial Processor",
+    "ExecMergeAppend Processor",
+    "ExecMergeJoin Processor",
+    "ExecModifyTable Processor",
+    "ExecNamedTuplestoreScan Processor",
+    "ExecNestLoop Processor",
+    "ExecProjectSet Processor",
+    "ExecRecursiveUnion Processor",
+    "ExecResult Processor",
+    "ExecSampleScan Processor",
+    "ExecSeqScan Processor",
+    "ExecSetOp Processor",
+    "ExecSort Processor",
+    "ExecSubPlan Processor",
+    "ExecSubqueryScan Processor",
+    "ExecTableFuncScan Processor",
+    "ExecTidScan Processor",
+    "ExecUnique Processor",
+    "ExecValuesScan Processor",
+    "ExecWindowAgg Processor",
+    "ExecWorkTableScan Processor",
 ]
+
 
 def kill_tscout_and_postgres():
     print("Shutting down TScout and Postgres")
@@ -56,7 +58,7 @@ def kill_tscout_and_postgres():
                 except (psutil.NoSuchProcess, psutil.ZombieProcess):
                     pass
             elif "tscout" in proc_name or any(
-                [listener_name.lower() in proc_name for listener_name in LISTENER_NAMES]
+                [processor_name.lower() in proc_name for processor_name in PROCESSOR_NAMES]
             ):
                 try:
                     proc.kill()

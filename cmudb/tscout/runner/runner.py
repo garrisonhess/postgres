@@ -61,7 +61,7 @@ BENCHMARK_TABLES = {
 
 
 def build_postgres(pg_dir):
-    """[Build Postgres (and extensions)]
+    """Build Postgres (and extensions)
 
     Args:
         pg_dir ([Path]): [Postgres root directory]
@@ -76,9 +76,12 @@ def build_postgres(pg_dir):
 
 
 def check_orphans():
-    # Check for TScout and Postgres processes from prior runs
-    # Note: this will throw an error if it finds *any* postgres processes,
-    # so it's not suited to run with multiple running Postgres instances.
+    """Check for TScout and Postgres processes from prior runs
+
+    This will throw an error if it finds *any* postgres processes,
+    so it's not suited to run with multiple running Postgres instances.
+    """
+
     pg_procs = []
     tscout_procs = []
 
@@ -101,8 +104,17 @@ def check_orphans():
         )
 
 
-# TODO: change psql commands to use psycopg2
 def init_pg(pg_dir, results_dir):
+    """Initialize Postgres
+
+    TODO: change psql commands to use psycopg2
+    Args:
+        pg_dir (Path): Postgres root directory
+        results_dir (Path): directory to store postgres logs (along with all other results)
+
+    Returns:
+        [Process]: postgres process
+    """
     os.chdir(pg_dir)
     pg_log_file = open(results_dir / "pg_log.txt", "w")
 
@@ -112,7 +124,7 @@ def init_pg(pg_dir, results_dir):
     Popen(args=["./build/bin/initdb -D data"], shell=True).wait()
 
     print("Starting Postgres")
-    pg_proc = Popen(
+    Popen(
         args=["./build/bin/postgres -D data -W 2 &"],
         shell=True,
         stdout=pg_log_file,
@@ -146,7 +158,7 @@ def init_pg(pg_dir, results_dir):
         shell=True,
     ).wait()
 
-    return pg_proc, pg_log_file
+    return pg_log_file
 
 
 def pg_prewarm(pg_dir, benchmark_name):
@@ -170,18 +182,21 @@ def pg_prewarm(pg_dir, benchmark_name):
 
 
 def init_tscout(tscout_dir, results_dir):
-    print(f"Starting TScout for {benchmark_name}, {experiment_name}, run_id: {run_id}")
+    print(f"Starting TScout")
     os.chdir(tscout_dir)
-
-    tscout_proc = Popen(
+    Popen(
         args=[f"sudo python3 tscout.py `pgrep -ox postgres` --outdir {results_dir} &"],
         shell=True,
     )
     time.sleep(1)
-    return tscout_proc
 
 
 def build_benchbase(benchbase_dir):
+    """[summary]
+
+    Args:
+        benchbase_dir ([type]): [description]
+    """
     os.chdir(benchbase_dir)
     benchbase_snapshot_path = benchbase_dir / "target" / "benchbase-2021-SNAPSHOT.zip"
     benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
@@ -195,6 +210,20 @@ def build_benchbase(benchbase_dir):
 
 
 def init_benchbase(benchbase_dir, benchmark_name, input_cfg_path, benchbase_results_dir):
+    """[summary]
+
+    Args:
+        benchbase_dir ([type]): [description]
+        benchmark_name ([type]): [description]
+        input_cfg_path ([type]): [description]
+        benchbase_results_dir ([type]): [description]
+
+    Raises:
+        Exception: [description]
+
+    Returns:
+        [type]: [description]
+    """
     os.chdir(benchbase_dir)
     benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
     if not os.path.exists(benchbase_snapshot_dir):
@@ -216,6 +245,20 @@ def init_benchbase(benchbase_dir, benchmark_name, input_cfg_path, benchbase_resu
 
 
 def exec_benchbase(benchbase_dir, benchmark_name, benchbase_results_dir):
+    """[summary]
+
+    Args:
+        benchbase_dir ([type]): [description]
+        benchmark_name ([type]): [description]
+        benchbase_results_dir ([type]): [description]
+
+    Raises:
+        Exception: [description]
+        Exception: [description]
+
+    Returns:
+        [type]: [description]
+    """
     os.chdir(benchbase_dir)
     benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
     if not os.path.exists(benchbase_snapshot_dir):
@@ -244,6 +287,13 @@ def exec_benchbase(benchbase_dir, benchmark_name, benchbase_results_dir):
 
 
 def cleanup_run(runner_dir, err, message=""):
+    """[summary]
+
+    Args:
+        runner_dir ([type]): [description]
+        err ([type]): [description]
+        message (str, optional): [description]. Defaults to "".
+    """
     if len(message) > 0:
         print(message)
 
@@ -256,33 +306,12 @@ def cleanup_run(runner_dir, err, message=""):
     Popen(args=[f"sudo python3 {cleanup_script_path} --username {username}"], shell=True).wait()
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run Postgres/Benchbase/TScout")
-    parser.add_argument("--build-pg", action="store_true", default=False)
-    parser.add_argument("--build-bbase", action="store_true", default=False)
-    parser.add_argument("--benchmark-name", default="tpcc")
-    parser.add_argument("--experiment-name", default=datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
-    parser.add_argument("--nruns", type=int, default=1)
-    parser.add_argument("--no-prewarm", action="store_true", default=False)
-
-    args = parser.parse_args()
-    build_pg = args.build_pg
-    build_bbase = args.build_bbase
-    benchmark_name = args.benchmark_name
-    experiment_name = args.experiment_name
-    nruns = args.nruns
-    prewarm = not args.no_prewarm
-    if nruns <= 0 or nruns > 10:
-        raise Exception("Invalid nruns: {runs}")
-
-    if benchmark_name not in BENCHMARK_NAMES:
-        raise ValueError(f"Invalid benchmark name: {benchmark_name}")
-
+def run(build_pg, build_bbase, benchmark_name, experiment_name, nruns, prewarm):
     pg_dir = Path.home() / "postgres"
     cmudb_dir = pg_dir / "cmudb"
     tscout_dir = cmudb_dir / "tscout"
     modeling_dir = cmudb_dir / "modeling"
-    runner_dir = modeling_dir / "runner"
+    runner_dir = tscout_dir / "runner"
     benchbase_dir = Path.home() / "benchbase"
     benchmark_cfg_path = runner_dir / "benchbase_configs" / f"{benchmark_name}_config.xml"
     experiment_dir = tscout_dir / "results" / benchmark_name / experiment_name
@@ -308,6 +337,7 @@ if __name__ == "__main__":
     print(
         f"Running experiment: {experiment_name} with {nruns} runs and experiment output dir: {experiment_dir}"
     )
+
     for run_id in range(nruns):
         print(f"Starting run {run_id}")
         results_dir = experiment_dir / str(run_id)
@@ -318,7 +348,7 @@ if __name__ == "__main__":
         check_orphans()
 
         try:
-            pg_proc, pg_log_file = init_pg(pg_dir, results_dir)
+            pg_log_file = init_pg(pg_dir, results_dir)
         except Exception as err:
             cleanup_run(runner_dir, err, message="Error initializing Postgres")
             exit(1)
@@ -337,7 +367,7 @@ if __name__ == "__main__":
                 exit(1)
 
         try:
-            tscout_proc = init_tscout(tscout_dir, results_dir)
+            init_tscout(tscout_dir, results_dir)
         except Exception as err:
             cleanup_run(runner_dir, err, message="Error initializing TScout")
             exit(1)
@@ -352,3 +382,35 @@ if __name__ == "__main__":
         pg_log_file.close()
         cleanup_run(runner_dir, err=None, message=f"Finished run {run_id}")
         time.sleep(1)
+
+
+if __name__ == "__main__":
+    """[summary]
+
+    Raises:
+        Exception: [description]
+        ValueError: [description]
+    """
+    parser = argparse.ArgumentParser(description="Run Postgres/Benchbase/TScout")
+    parser.add_argument("--build-pg", action="store_true", default=False)
+    parser.add_argument("--build-bbase", action="store_true", default=False)
+    parser.add_argument("--benchmark-name", default="tpcc")
+    parser.add_argument("--experiment-name", default=datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    parser.add_argument("--nruns", type=int, default=1)
+    parser.add_argument("--no-prewarm", action="store_true", default=False)
+
+    args = parser.parse_args()
+    build_pg = args.build_pg
+    build_bbase = args.build_bbase
+    benchmark_name = args.benchmark_name
+    experiment_name = args.experiment_name
+    nruns = args.nruns
+    prewarm = not args.no_prewarm
+
+    if nruns <= 0 or nruns > 10:
+        raise Exception("Invalid nruns: {runs}")
+
+    if benchmark_name not in BENCHMARK_NAMES:
+        raise ValueError(f"Invalid benchmark name: {benchmark_name}")
+
+    run(build_pg, build_bbase, benchmark_name, experiment_name, nruns, prewarm)
