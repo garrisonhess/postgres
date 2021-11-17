@@ -8,8 +8,6 @@ from pathlib import Path
 import shutil
 from datetime import datetime
 import psutil
-import signal
-
 
 BENCHMARK_NAMES = [
     "tpcc",
@@ -179,7 +177,7 @@ def init_tscout(tscout_dir, results_dir):
         args=[f"sudo python3 tscout.py `pgrep -ox postgres` --outdir {results_dir} &"],
         shell=True,
     )
-    time.sleep(10)
+    time.sleep(1)
     return tscout_proc
 
 
@@ -196,7 +194,7 @@ def build_benchbase(benchbase_dir):
         Popen(args=[f"unzip {benchbase_snapshot_path}"], shell=True).wait()
 
 
-def init_benchbase(benchbase_dir, benchmark_name, input_cfg_path, benchbase_results_dir, pg_dir):
+def init_benchbase(benchbase_dir, benchmark_name, input_cfg_path, benchbase_results_dir):
     os.chdir(benchbase_dir)
     benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
     if not os.path.exists(benchbase_snapshot_dir):
@@ -274,7 +272,7 @@ if __name__ == "__main__":
     experiment_name = args.experiment_name
     nruns = args.nruns
     prewarm = not args.no_prewarm
-    if nruns < 0 or nruns > 10:
+    if nruns <= 0 or nruns > 10:
         raise Exception("Invalid nruns: {runs}")
 
     if benchmark_name not in BENCHMARK_NAMES:
@@ -285,8 +283,8 @@ if __name__ == "__main__":
     tscout_dir = cmudb_dir / "tscout"
     modeling_dir = cmudb_dir / "modeling"
     runner_dir = modeling_dir / "runner"
-    benchmark_cfg_path = runner_dir / "benchbase_configs" / f"{benchmark_name}_config.xml"
     benchbase_dir = Path.home() / "benchbase"
+    benchmark_cfg_path = runner_dir / "benchbase_configs" / f"{benchmark_name}_config.xml"
     experiment_dir = tscout_dir / "results" / benchmark_name / experiment_name
     Path(experiment_dir).mkdir(parents=True, exist_ok=True)
 
@@ -317,6 +315,8 @@ if __name__ == "__main__":
         benchbase_results_dir = results_dir / "benchbase"
         Path(benchbase_results_dir).mkdir(exist_ok=True)
 
+        check_orphans()
+
         try:
             pg_proc, pg_log_file = init_pg(pg_dir, results_dir)
         except Exception as err:
@@ -324,9 +324,7 @@ if __name__ == "__main__":
             exit(1)
 
         try:
-            init_benchbase(
-                benchbase_dir, benchmark_name, benchmark_cfg_path, benchbase_results_dir, pg_dir
-            )
+            init_benchbase(benchbase_dir, benchmark_name, benchmark_cfg_path, benchbase_results_dir)
         except Exception as err:
             cleanup_run(runner_dir, err, message="Error initializing Benchbase")
             exit(1)
@@ -351,9 +349,6 @@ if __name__ == "__main__":
             exit(1)
 
         time.sleep(5)
-        tscout_proc.send_signal(signal.SIGINT)
-        pg_proc.kill()
-        tscout_proc.kill()
         pg_log_file.close()
         cleanup_run(runner_dir, err=None, message=f"Finished run {run_id}")
-        time.sleep(5)
+        time.sleep(1)
