@@ -13,12 +13,6 @@ from sklearn import (
     tree,
 )
 
-# import warnings filter
-from warnings import simplefilter
-
-# ignore all future warnings
-simplefilter(action="ignore", category=FutureWarning)
-
 _LOGTRANS_EPS = 1e-4
 
 METHODS = [
