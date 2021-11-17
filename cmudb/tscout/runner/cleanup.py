@@ -4,14 +4,16 @@ import psutil
 import shutil
 from pathlib import Path
 import argparse
+import signal
+import os
 
 
 def kill_tscout_and_postgres():
     print("Shutting down TScout and Postgres")
-
     tscout_process_names = ["TScout Coordinator", "TScout Processor", "TScout Collector"]
+
     try:
-        for proc in psutil.process_iter(["name"]):
+        for proc in psutil.process_iter(["name", "pid"]):
 
             if "postgres" in proc.info["name"].lower():
                 try:
@@ -19,10 +21,17 @@ def kill_tscout_and_postgres():
                 except (psutil.NoSuchProcess, psutil.ZombieProcess):
                     pass
             elif any([tscout_process_name in proc.info["name"] for tscout_process_name in tscout_process_names]):
-                try:
+                try: 
                     proc.kill()
                 except (psutil.NoSuchProcess, psutil.ZombieProcess):
                     pass
+            # elif "TScout Coordinator" in proc.info["name"]: # this is supposed to be the safer way to shutdown tscout but it isn't working yet
+            #     try:
+            #         print(f"Sending SIGINT to process: {proc}")
+            #         # proc.send_signal(signal.SIGINT)
+            #         os.kill(proc.info["pid"], signal.SIGINT)
+            #     except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            #         pass
         print("Shutdown TScout and Postgres successfully")
     except Exception as err:
         print(f"Error shutting down TScout and Postgres: {err}")
