@@ -73,7 +73,7 @@ def chown_results(username):
     # change the tscout results ownership to the user who ran the benchmark
     results_dir = f"/home/{username}/postgres/cmudb/tscout/results/"
     print(f"Changing ownership of TScout results from root to user: {username}")
-    result_files = shutil.chown(results_dir, user=username)
+    shutil.chown(results_dir, user=username)
     for file in Path(results_dir).glob("**/*"):
         shutil.chown(file, user=username)
     print("Cleanup Complete")

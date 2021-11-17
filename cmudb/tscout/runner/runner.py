@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from subprocess import PIPE, Popen
+from subprocess import Popen
 import time
 import os
 import argparse
@@ -62,7 +62,7 @@ BENCHMARK_TABLES = {
 
 def build_postgres(pg_dir):
     """Build Postgres (and extensions)"""
-    
+
     os.chdir(pg_dir)
     print("Building Postgres")
     Popen(args=["./cmudb/build/configure.sh release"], shell=True).wait()
@@ -91,14 +91,10 @@ def check_orphans():
             tscout_procs.append(proc)
 
     if len(pg_procs) > 0:
-        raise Exception(
-            f"Aborting: there are active postgres processes from previous runs: {pg_procs}"
-        )
+        raise Exception(f"Aborting: there are active postgres processes from previous runs: {pg_procs}")
 
     if len(tscout_procs) > 0:
-        raise Exception(
-            f"Aborting because there are active tscout processes from previous runs: {tscout_procs}"
-        )
+        raise Exception(f"Aborting because there are active tscout processes from previous runs: {tscout_procs}")
 
 
 def init_pg(pg_dir, results_dir):
@@ -136,9 +132,7 @@ def init_pg(pg_dir, results_dir):
         shell=True,
     ).wait()
     Popen(
-        args=[
-            '''./build/bin/psql -d benchbase -c "ALTER DATABASE benchbase SET compute_query_id = 'ON';"'''
-        ],
+        args=['''./build/bin/psql -d benchbase -c "ALTER DATABASE benchbase SET compute_query_id = 'ON';"'''],
         shell=True,
     ).wait()
 
@@ -153,12 +147,10 @@ def init_pg(pg_dir, results_dir):
 
 def pg_prewarm(pg_dir, benchmark_name):
     """Prewarm Postgres so the buffer pool and OS page cache has the workload data available"""
-    
+
     os.chdir(pg_dir)
-    print(f"Prewarming Postgres")
-    Popen(
-        args=['''./build/bin/psql -d benchbase -c "CREATE EXTENSION pg_prewarm"'''], shell=True
-    ).wait()
+    print("Prewarming Postgres")
+    Popen(args=['''./build/bin/psql -d benchbase -c "CREATE EXTENSION pg_prewarm"'''], shell=True).wait()
 
     if benchmark_name not in BENCHMARK_TABLES.keys():
         raise Exception(f"Benchmark {benchmark_name} doesn't have prewarm tables setup yet.")
@@ -170,11 +162,11 @@ def pg_prewarm(pg_dir, benchmark_name):
             shell=True,
         ).wait()
 
-    print(f"Prewarmed Postgres")
+    print("Prewarmed Postgres")
 
 
 def init_tscout(tscout_dir, results_dir):
-    print(f"Starting TScout")
+    print("Starting TScout")
     os.chdir(tscout_dir)
     Popen(
         args=[f"sudo python3 tscout.py `pgrep -ox postgres` --outdir {results_dir} &"],
@@ -250,6 +242,7 @@ def exec_benchbase(benchbase_dir, benchmark_name, benchbase_results_dir):
 
 def cleanup_run(runner_dir, err, message=""):
     """Clean up the TScout and Postgres processes after either a successful or failed run"""
+
     if len(message) > 0:
         print(message)
 
@@ -264,10 +257,10 @@ def cleanup_run(runner_dir, err, message=""):
 
 def run(build_pg, build_bbase, benchmark_name, experiment_name, nruns, prewarm):
     """Run an experiment (potentially multiple times)"""
+
     pg_dir = Path.home() / "postgres"
     cmudb_dir = pg_dir / "cmudb"
     tscout_dir = cmudb_dir / "tscout"
-    modeling_dir = cmudb_dir / "modeling"
     runner_dir = tscout_dir / "runner"
     benchbase_dir = Path.home() / "benchbase"
     benchmark_cfg_path = runner_dir / "benchbase_configs" / f"{benchmark_name}_config.xml"
@@ -291,9 +284,7 @@ def run(build_pg, build_bbase, benchmark_name, experiment_name, nruns, prewarm):
             cleanup_run(runner_dir, err, message="Error building benchbase")
             exit(1)
 
-    print(
-        f"Running experiment: {experiment_name} with {nruns} runs and experiment output dir: {experiment_dir}"
-    )
+    print(f"Running experiment: {experiment_name} with {nruns} runs and experiment output dir: {experiment_dir}")
 
     for run_id in range(nruns):
         print(f"Starting run {run_id}")
@@ -343,6 +334,7 @@ def run(build_pg, build_bbase, benchmark_name, experiment_name, nruns, prewarm):
 
 if __name__ == "__main__":
     """Parse command line arguments and run the experiment"""
+
     parser = argparse.ArgumentParser(description="Run Postgres/Benchbase/TScout")
     parser.add_argument("--build-pg", action="store_true", default=False)
     parser.add_argument("--build-bbase", action="store_true", default=False)
