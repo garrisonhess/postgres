@@ -10,7 +10,8 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import itertools
 import model
 
-BENCHMARK_NAMES = ["tpcc", "tpch", "ycsb", "wikipedia", "voter", "twitter", "tatp", "smallbank", "sibench", "seats", "resourcestresser", "noop", "hyadapt", "epinions", "chbenchmark", "auctionmark"]
+BENCH_DBS = ["tpcc", "tpch", "ycsb", "wikipedia", "voter", "twitter", "tatp", "smallbank", "sibench",
+             "seats", "resourcestresser", "noop", "hyadapt", "epinions", "chbenchmark", "auctionmark"]
 
 OU_NAMES = [
     "ExecAgg",
@@ -58,11 +59,11 @@ def load_data(experiment_dir):
 
     for ou_name in OU_NAMES:
         ou_results = [fp for fp in result_paths if fp.name == f"{ou_name}.csv" and os.stat(fp).st_size > 0]
-        if len(ou_results) > 0: 
+        if len(ou_results) > 0:
             # print(f"Found {len(ou_results)} run(s) for {ou_name}")
             ou_name_to_nruns[ou_name] = len(ou_results)
             ou_name_to_df[ou_name] = pd.concat(map(pd.read_csv, ou_results))
-    
+
     return ou_name_to_df, ou_name_to_nruns
 
 
@@ -106,16 +107,19 @@ def prep_data(df, test_size=0.2):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="OU Model Trainer")
-    parser.add_argument("--log", default="info", help="The logging level")
-    parser.add_argument("--benchmark-name", default="tpcc", help=f"Benchmarks include: {BENCHMARK_NAMES}")
+    parser.add_argument("--bench-db", default="tpcc", help=f"Benchmarks include: {BENCH_DBS}")
     parser.add_argument("--experiment-name", required=False, help="Experiment Name")
+    parser.add_argument("--sqlsmith", action="store_true", default=False, help="Use SQLSmith data")
     args = parser.parse_args()
-    benchmark_name = args.benchmark_name
-    experiment_name = args.experiment_name
 
-    if benchmark_name not in BENCHMARK_NAMES:
-        raise ValueError(f"Benchmark name {benchmark_name} not supported")
-    
+    bench_db = args.bench_db
+    benchmark_name = f"{bench_db}{'-sqlsmith' if args.sqlsmith else '-default'}"
+    experiment_name = args.experiment_name
+    sqlsmith = args.sqlsmith
+
+    if bench_db not in BENCH_DBS:
+        raise ValueError(f"Benchmark DB {bench_db} not supported")
+
     benchmark_results_dir = Path.home() / "postgres/cmudb/tscout/results/" / benchmark_name
 
     # if no experiment name is provided, try to find one
@@ -127,13 +131,14 @@ if __name__ == "__main__":
         print(f"Experiment name was not provided, using experiment: {experiment_name}")
 
     experiment_dir = benchmark_results_dir / experiment_name
-    evaluation_dir = Path.home() / "postgres/cmudb/modeling/evaluation"  / benchmark_name / experiment_name
+    evaluation_dir = Path.home() / "postgres/cmudb/modeling/evaluation" / benchmark_name / experiment_name
     evaluation_dir.mkdir(parents=True, exist_ok=True)
-    
+
     methods = ["lr", "rf", "gbm"]
     ou_name_to_df, ou_name_to_nruns = load_data(experiment_dir)
-    
-    for ou_name in ou_name_to_df.keys(): 
+
+    for ou_name in ou_name_to_df.keys():
+        print(f"Begin Training OU: {ou_name}")
         feat_cols, target_cols, X_train, X_test, y_train, y_test = prep_data(ou_name_to_df[ou_name], test_size=0.2)
         ou_eval_dir = evaluation_dir / ou_name
         ou_eval_dir.mkdir(exist_ok=True)
@@ -143,54 +148,62 @@ if __name__ == "__main__":
             continue
 
         for method in methods:
-            ou_model = model.Model(
-                method=method, normalize=True, log_transform=False, robust=False
-            )
-            ou_model.train(X_train, y_train)
-            y_train_pred = ou_model.predict(X_train)
-            y_test_pred = ou_model.predict(X_test)
+            print(f"Training OU: {ou_name} with model: {method}")
 
-            # pair and reorder the target columns for readable outputs
-            paired_cols = zip(target_cols, [f"pred_{col}" for col in target_cols])
-            reordered_cols = feat_cols + list(itertools.chain.from_iterable(paired_cols))
+            try:
+                ou_model = model.Model(
+                    method=method, normalize=True, log_transform=False, robust=False
+                )
+                ou_model.train(X_train, y_train)
+                y_train_pred = ou_model.predict(X_train)
+                y_test_pred = ou_model.predict(X_test)
 
-            train_preds_path = ou_eval_dir / f"{ou_name}_{method}_train_preds.csv"
-            with open(train_preds_path, "w+") as train_preds_file:
-                temp = np.concatenate((X_train, y_train, y_train_pred), axis=1)
-                train_result_df = pd.DataFrame(temp, columns=feat_cols + target_cols + [f"pred_{col}" for col in target_cols])
-                train_result_df[reordered_cols].to_csv(train_preds_file, float_format="%.1f", index=False)
-            
-            test_preds_path = ou_eval_dir / f"{ou_name}_{method}_test_preds.csv"
-            with open(test_preds_path, "w+") as test_preds_file:
-                temp = np.concatenate((X_test, y_test, y_test_pred), axis=1)
-                test_result_df = pd.DataFrame(temp, columns=feat_cols + target_cols + [f"pred_{col}" for col in target_cols])
-                test_result_df[reordered_cols].to_csv(test_preds_file, float_format="%.1f", index=False)
+                # pair and reorder the target columns for readable outputs
+                paired_cols = zip(target_cols, [f"pred_{col}" for col in target_cols])
+                reordered_cols = feat_cols + list(itertools.chain.from_iterable(paired_cols))
 
-            ou_eval_path = ou_eval_dir / f"{ou_name}_{method}_summary.txt"
-            with open(ou_eval_path, "w+") as eval_file:
-                eval_file.write(f"\n============= Model Summary for {ou_name} Model: {method} =============\n")
-                eval_file.write(f"Num Runs used: {ou_name_to_nruns[ou_name]}\n")
-                eval_file.write(f"Features used: {feat_cols}\n")
-                eval_file.write(f"Num Features used: {len(feat_cols)}\n")
-                eval_file.write(f"Targets estimated: {target_cols}\n")
+                train_preds_path = ou_eval_dir / f"{ou_name}_{method}_train_preds.csv"
+                with open(train_preds_path, "w+") as train_preds_file:
+                    temp = np.concatenate((X_train, y_train, y_train_pred), axis=1)
+                    train_result_df = pd.DataFrame(temp, columns=feat_cols + target_cols +
+                                                   [f"pred_{col}" for col in target_cols])
+                    train_result_df[reordered_cols].to_csv(train_preds_file, float_format="%.1f", index=False)
 
-                for target_idx, target in enumerate(target_cols):
-                    eval_file.write(f"===== Target: {target} =====\n")
-                    train_target_pred = y_train_pred[:, target_idx]
-                    train_target_true = y_train[:, target_idx]
-                    mse = mean_squared_error(train_target_true, train_target_pred)
-                    mae = mean_absolute_error(train_target_true, train_target_pred)
-                    r2 = r2_score(train_target_true, train_target_pred)
-                    eval_file.write(f"Train MSE: {round(mse, 2)}\n")
-                    eval_file.write(f"Train MAE: {round(mae, 2)}\n")
-                    eval_file.write(f"Train R^2: {round(r2, 2)}\n")
+                test_preds_path = ou_eval_dir / f"{ou_name}_{method}_test_preds.csv"
+                with open(test_preds_path, "w+") as test_preds_file:
+                    temp = np.concatenate((X_test, y_test, y_test_pred), axis=1)
+                    test_result_df = pd.DataFrame(temp, columns=feat_cols + target_cols +
+                                                  [f"pred_{col}" for col in target_cols])
+                    test_result_df[reordered_cols].to_csv(test_preds_file, float_format="%.1f", index=False)
 
-                    test_target_pred = y_test_pred[:, target_idx]
-                    test_target_true = y_test[:, target_idx]
-                    mse = mean_squared_error(test_target_true, test_target_pred)
-                    mae = mean_absolute_error(test_target_true, test_target_pred)
-                    r2 = r2_score(test_target_true, test_target_pred)
-                    eval_file.write(f"Test MSE: {round(mse, 2)}\n")
-                    eval_file.write(f"Test MAE: {round(mae, 2)}\n")
-                    eval_file.write(f"Test R^2: {round(r2, 2)}\n")
-                eval_file.write("======================== END SUMMARY ========================\n")
+                ou_eval_path = ou_eval_dir / f"{ou_name}_{method}_summary.txt"
+                with open(ou_eval_path, "w+") as eval_file:
+                    eval_file.write(f"\n============= Model Summary for {ou_name} Model: {method} =============\n")
+                    eval_file.write(f"Num Runs used: {ou_name_to_nruns[ou_name]}\n")
+                    eval_file.write(f"Features used: {feat_cols}\n")
+                    eval_file.write(f"Num Features used: {len(feat_cols)}\n")
+                    eval_file.write(f"Targets estimated: {target_cols}\n")
+
+                    for target_idx, target in enumerate(target_cols):
+                        eval_file.write(f"===== Target: {target} =====\n")
+                        train_target_pred = y_train_pred[:, target_idx]
+                        train_target_true = y_train[:, target_idx]
+                        mse = mean_squared_error(train_target_true, train_target_pred)
+                        mae = mean_absolute_error(train_target_true, train_target_pred)
+                        r2 = r2_score(train_target_true, train_target_pred)
+                        eval_file.write(f"Train MSE: {round(mse, 2)}\n")
+                        eval_file.write(f"Train MAE: {round(mae, 2)}\n")
+                        eval_file.write(f"Train R^2: {round(r2, 2)}\n")
+
+                        test_target_pred = y_test_pred[:, target_idx]
+                        test_target_true = y_test[:, target_idx]
+                        mse = mean_squared_error(test_target_true, test_target_pred)
+                        mae = mean_absolute_error(test_target_true, test_target_pred)
+                        r2 = r2_score(test_target_true, test_target_pred)
+                        eval_file.write(f"Test MSE: {round(mse, 2)}\n")
+                        eval_file.write(f"Test MAE: {round(mae, 2)}\n")
+                        eval_file.write(f"Test R^2: {round(r2, 2)}\n")
+                    eval_file.write("======================== END SUMMARY ========================\n")
+            except Exception as e:
+                print(f"Exception encountered during training OU {ou_name}: {e}")
+                continue
