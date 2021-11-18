@@ -315,7 +315,7 @@ def exec_sqlsmith(runner_dir, pg_dir, sqlsmith_dir):
                 shell=True).wait()
 
         os.chdir(sqlsmith_dir)
-        sqlsmith_cmd = '''./sqlsmith --target="host=localhost port=5432 dbname=benchbase connect_timeout=10" --seed=42 --max-queries=100000 --exclude-catalog'''
+        sqlsmith_cmd = '''./sqlsmith --target="host=localhost port=5432 dbname=benchbase connect_timeout=10" --seed=42 --max-queries=10000 --exclude-catalog'''
         Popen(args=[sqlsmith_cmd], shell=True).wait()
     except Exception as err:
         cleanup(runner_dir, err, terminate=True, message="Error running SQLSmith")
@@ -388,7 +388,7 @@ if __name__ == "__main__":
     build_pg = args.build_pg
     build_bbase = args.build_bbase
     bench_db = args.bench_db
-    benchmark_name = f"{args.bench_db}{'-sqlsmith' if args.sqlsmith else '-default'}"
+    benchmark_name = f"{args.bench_db}-{'sqlsmith' if args.sqlsmith else 'default'}"
     experiment_name = args.experiment_name
     nruns = args.nruns
     prewarm = not args.no_prewarm
