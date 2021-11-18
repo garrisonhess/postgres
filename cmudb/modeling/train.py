@@ -7,8 +7,11 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn import tree
 import itertools
 import model
+import pydotplus
+
 
 BENCH_DBS = ["tpcc", "tpch", "ycsb", "wikipedia", "voter", "twitter", "tatp", "smallbank", "sibench",
              "seats", "resourcestresser", "noop", "hyadapt", "epinions", "chbenchmark", "auctionmark"]
@@ -113,7 +116,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     bench_db = args.bench_db
-    benchmark_name = f"{bench_db}{'-sqlsmith' if args.sqlsmith else '-default'}"
+    benchmark_name = f"{bench_db}-{'sqlsmith' if args.sqlsmith else 'default'}"
     experiment_name = args.experiment_name
     sqlsmith = args.sqlsmith
 
@@ -134,7 +137,7 @@ if __name__ == "__main__":
     evaluation_dir = Path.home() / "postgres/cmudb/modeling/evaluation" / benchmark_name / experiment_name
     evaluation_dir.mkdir(parents=True, exist_ok=True)
 
-    methods = ["lr", "rf", "gbm"]
+    methods = ["lr", "gbm", "elastic", "dt"]
     ou_name_to_df, ou_name_to_nruns = load_data(experiment_dir)
 
     for ou_name in ou_name_to_df.keys():
@@ -155,11 +158,18 @@ if __name__ == "__main__":
                     method=method, normalize=True, log_transform=False, robust=False
                 )
                 ou_model.train(X_train, y_train)
+
+                if method == "dt":
+                    for idx, target_name in enumerate(target_cols):
+                        dot = tree.export_graphviz(ou_model._base_model.estimators_[idx], feature_names=feat_cols, filled=True)
+                        dt_file = f"{ou_eval_dir}/{ou_name}_treeplot_{target_name}.png"
+                        pydotplus.graphviz.graph_from_dot_data(dot).write_png(dt_file)
+
                 y_train_pred = ou_model.predict(X_train)
                 y_test_pred = ou_model.predict(X_test)
 
                 # pair and reorder the target columns for readable outputs
-                paired_cols = zip(target_cols, [f"pred_{col}" for col in target_cols])
+                paired_cols = zip([f"pred_{col}" for col in target_cols], target_cols)
                 reordered_cols = feat_cols + list(itertools.chain.from_iterable(paired_cols))
 
                 train_preds_path = ou_eval_dir / f"{ou_name}_{method}_train_preds.csv"

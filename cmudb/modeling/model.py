@@ -4,14 +4,13 @@ import numpy as np
 import lightgbm as lgb
 from sklearn import (
     linear_model,
-    kernel_ridge,
     ensemble,
     preprocessing,
     neural_network,
     multioutput,
-    svm,
     tree,
 )
+from sklearn.tree import DecisionTreeRegressor
 
 _LOGTRANS_EPS = 1e-4
 
@@ -27,6 +26,7 @@ METHODS = [
     "lasso",
     "dt",
     "mt_elastic",
+    "elastic",
 ]
 
 
@@ -40,13 +40,8 @@ def _get_base_ml_model(method):
     if method == "huber":
         regressor = linear_model.HuberRegressor(max_iter=50)
         regressor = multioutput.MultiOutputRegressor(regressor)
-    if method == "svr":
-        regressor = svm.LinearSVR()
-        regressor = multioutput.MultiOutputRegressor(regressor)
-    if method == "kr":
-        regressor = kernel_ridge.KernelRidge(kernel="rbf", n_jobs=8)
     if method == "rf":
-        regressor = ensemble.RandomForestRegressor(n_estimators=50, n_jobs=8)
+        regressor = ensemble.RandomForestRegressor(n_estimators=50, criterion="absolute_error", n_jobs=8)
     if method == "gbm":
         regressor = lgb.LGBMRegressor(
             max_depth=31,
@@ -65,7 +60,11 @@ def _get_base_ml_model(method):
     if method == "lasso":
         regressor = linear_model.Lasso(alpha=1.0)
     if method == "dt":
-        regressor = tree.DecisionTreeRegressor()
+        regressor = DecisionTreeRegressor(max_depth=3)
+        regressor = multioutput.MultiOutputRegressor(regressor)
+    if method == "elastic":
+        regressor = linear_model.ElasticNet(alpha=0.1, l1_ratio=0.5)
+        regressor = multioutput.MultiOutputRegressor(regressor)
     if method == "mt_elastic":
         regressor = linear_model.MultiTaskElasticNet(l1_ratio=0.5)
 
@@ -84,6 +83,7 @@ class Model:
         :param normalize: whether to perform standard normalization on data (both x and y)
         :param log_transform: whether to perform log transformation on data (both x and y)
         """
+
         self._base_model = _get_base_ml_model(method)
         self._normalize = normalize
         self._log_transform = log_transform
