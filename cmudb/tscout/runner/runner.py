@@ -292,9 +292,10 @@ def cleanup(runner_dir, err, terminate, message=""):
         exit(1)
 
 
-def exec_sqlsmith(runner_dir):
+def exec_sqlsmith(runner_dir, pg_dir, sqlsmith_dir):
 
     try:
+        os.chdir(pg_dir)
         # Add SQLSmith user to benchbase DB with non-superuser privileges
         Popen(
             args=[
@@ -313,8 +314,8 @@ def exec_sqlsmith(runner_dir):
                     f'''./build/bin/psql -d benchbase -c "GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO sqlsmith;"'''],
                 shell=True).wait()
 
-        os.chdir(Path.home() / "sqlsmith")
-        sqlsmith_cmd = '''./sqlsmith --verbose --target="host=localhost port=5432 dbname=benchbase connect_timeout=10" --seed=42 --max-queries=1000 --exclude-catalog'''
+        os.chdir(sqlsmith_dir)
+        sqlsmith_cmd = '''./sqlsmith --target="host=localhost port=5432 dbname=benchbase connect_timeout=10" --seed=42 --max-queries=100000 --exclude-catalog'''
         Popen(args=[sqlsmith_cmd], shell=True).wait()
     except Exception as err:
         cleanup(runner_dir, err, terminate=True, message="Error running SQLSmith")
@@ -323,12 +324,14 @@ def exec_sqlsmith(runner_dir):
 def run(build_pg, build_bbase, bench_db, benchmark_name, experiment_name, nruns, prewarm, sqlsmith):
     """Run an experiment"""
 
+    # Setup directories here so the expected structure is (relatively) clear
     pg_dir = Path.home() / "postgres"
     cmudb_dir = pg_dir / "cmudb"
     tscout_dir = cmudb_dir / "tscout"
     runner_dir = tscout_dir / "runner"
     benchbase_dir = Path.home() / "benchbase"
     bench_db_cfg_path = runner_dir / "benchbase_configs" / f"{bench_db}_config.xml"
+    sqlsmith_dir = Path.home() / "sqlsmith"
     experiment_dir = tscout_dir / "results" / benchmark_name / experiment_name
     Path(experiment_dir).mkdir(parents=True, exist_ok=True)
 
@@ -361,7 +364,7 @@ def run(build_pg, build_bbase, bench_db, benchmark_name, experiment_name, nruns,
         tscout_proc = init_tscout(tscout_dir, results_dir, runner_dir)
 
         if sqlsmith:
-            exec_sqlsmith(runner_dir)
+            exec_sqlsmith(runner_dir, pg_dir, sqlsmith_dir)
         else:
             exec_benchbase(benchbase_dir, bench_db, benchmark_name, benchbase_results_dir, runner_dir)
 
