@@ -1,14 +1,13 @@
 #!/usr/bin/python3
+import argparse
+import logging
 import multiprocessing as mp
-from pathlib import Path
-import sys
-
 from dataclasses import dataclass
+from pathlib import Path
+
 import psutil
 import setproctitle
-import logging
 from bcc import BPF, USDT, PerfHWConfig, PerfType, utils
-import argparse
 
 import model
 
@@ -263,15 +262,11 @@ def lost_something(num_lost):
 
 
 
-def processor(ou, buffered_strings, outdir=None):
+def processor(ou, buffered_strings, outdir):
     setproctitle.setproctitle("TScout Processor {}".format(ou.name()))
 
     # Open output file, with the name based on the OU.
-    if outdir is None:
-        file = open("./{}.csv".format(ou.name()), "w")
-    else: 
-        Path(outdir).mkdir(parents=True, exist_ok=True)
-        file = open(f"{outdir}/{ou.name()}.csv", "w")
+    file = open(f"{outdir}/{ou.name()}.csv", "w")
 
     # Write the OU's feature columns for CSV header,
     # with an additional separator before resource metrics columns.
@@ -308,16 +303,17 @@ def processor(ou, buffered_strings, outdir=None):
 
 
 if __name__ == "__main__":
-    # Parse the command line args, in this case,
-    # just the postmaster PID that we're attaching to.
-    if len(sys.argv) < 2:
-        logger.error("USAGE: tscout PID")
-        exit()
-    pid = int(sys.argv[1])
+    parser = argparse.ArgumentParser(description="TScout")
+    parser.add_argument("pid", type=int, help="Postmaster PID that we're attaching to")
+    parser.add_argument("--outdir", required=False, default=Path.cwd(), help="Training data output directory")
+    args = parser.parse_args()
+    pid = args.pid
+    outdir = args.outdir
+    Path(outdir).mkdir(parents=True, exist_ok=True)
 
     postgres = PostgresInstance(pid)
 
-    setproctitle.setproctitle("{} TScout".format(postgres.postgres_pid))
+    setproctitle.setproctitle("{} TScout Coordinator".format(postgres.postgres_pid))
 
     # Read the C code for TScout.
     with open('tscout.c', 'r') as tscout_file:
@@ -350,7 +346,8 @@ if __name__ == "__main__":
             #  may not work reliably with a poison pill for shutdown
             ou_processor_queue = mp.Queue()
             ou_processor_queues.append(ou_processor_queue)
-            ou_processor = mp.Process(target=processor, args=(ou, ou_processor_queue),)
+            ou_processor = mp.Process(target=processor,
+                                    args=(ou, ou_processor_queue, outdir),)
             ou_processor.start()
             ou_processors.append(ou_processor)
 
