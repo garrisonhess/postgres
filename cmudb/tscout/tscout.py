@@ -350,8 +350,7 @@ if __name__ == "__main__":
             #  may not work reliably with a poison pill for shutdown
             ou_processor_queue = mp.Queue()
             ou_processor_queues.append(ou_processor_queue)
-            ou_processor = mp.Process(target=processor,
-                                    args=(ou, ou_processor_queue, outdir),)
+            ou_processor = mp.Process(target=processor, args=(ou, ou_processor_queue),)
             ou_processor.start()
             ou_processors.append(ou_processor)
 
