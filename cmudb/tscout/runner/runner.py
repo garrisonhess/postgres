@@ -455,6 +455,6 @@ if __name__ == "__main__":
     )
     parser.add_argument("--config", type=str, default="default")
     args = parser.parse_args()
-    logger = logging.getLogger("modeling")
-    
+    logger = logging.getLogger("runner")
+
     run(config_name=args.config)

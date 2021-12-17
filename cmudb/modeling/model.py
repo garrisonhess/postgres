@@ -72,7 +72,7 @@ def get_model(method, config):
 
 
 class BehaviorModel:
-    def __init__(self, method, timestamp, config):
+    def __init__(self, method, ou_name, timestamp, config):
         """
         :param method: which ML method to use
         :param normalize: whether to perform standard normalization on data (both x and y)
@@ -81,7 +81,7 @@ class BehaviorModel:
 
         self.method = method
         self.timestamp = timestamp
-        self.model_name = f"{method}_{timestamp}"
+        self.ou_name = ou_name
         self.model = get_model(method, config)
         self.normalize = config["normalize"]
         self.log_transform = config["log_transform"]
@@ -120,5 +120,9 @@ class BehaviorModel:
         return y
 
     def save(self):
-        with open(MODEL_DIR / self.model_name, "wb") as f:
+        model_dir = MODEL_DIR / self.timestamp
+        model_dir.mkdir(parents=True, exist_ok=True)
+        model_path = model_dir / f"{self.method}_{self.ou_name}.pkl"
+
+        with open(model_path, "wb") as f:
             pickle.dump(self.model, f)

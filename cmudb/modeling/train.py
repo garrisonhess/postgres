@@ -27,6 +27,9 @@ def load_data(experiment_dir):
             ou_name_to_nruns[ou_name] = len(ou_results)
             ou_name_to_df[ou_name] = pd.concat(map(pd.read_csv, ou_results))
 
+    if len(ou_name_to_df) == 0:
+        raise Exception(f"No data found in experiment_dir: {experiment_dir}")
+
     return ou_name_to_df, ou_name_to_nruns
 
 
@@ -70,7 +73,7 @@ if __name__ == "__main__":
         f"{config['bench_db']}-{'sqlsmith' if config['sqlsmith'] else 'default'}"
     )
     training_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    logger = logging.getLogger("modeling")
+    logger = logging.getLogger()
     logger.setLevel(config["log_level"])
 
     if config["bench_db"] not in BENCH_DBS:
@@ -83,33 +86,32 @@ if __name__ == "__main__":
         experiment_list = sorted(
             [exp_path.name for exp_path in benchmark_results_dir.glob("*")]
         )
-        logger.info(f"{benchmark_name} experiments: {experiment_list}")
+        logger.warning(f"{benchmark_name} experiments: {experiment_list}")
         assert len(experiment_list) > 0, f"No experiments found for {benchmark_name}"
         experiment_name = experiment_list[-1]
-        logger.info(
+        logger.warning(
             f"Experiment name was not provided, using experiment: {experiment_name}"
         )
 
     experiment_dir = benchmark_results_dir / experiment_name
     evaluation_dir = EVAL_DIR / benchmark_name / experiment_name
     evaluation_dir.mkdir(parents=True, exist_ok=True)
-
     ou_name_to_df, ou_name_to_nruns = load_data(experiment_dir)
 
     for ou_name in ou_name_to_df.keys():
-        logger.info(f"Begin Training OU: {ou_name}")
+        logger.warning(f"Begin Training OU: {ou_name}")
         feat_cols, target_cols, X, y = prep_data(ou_name_to_df[ou_name])
         model_name = f"{ou_name}_{training_timestamp}"
 
         if X.shape[1] == 0 or y.shape[1] == 0:
-            logger.info(f"{ou_name} has no valid training data, skipping")
+            logger.warning(f"{ou_name} has no valid training data, skipping")
             continue
 
         for method in config["methods"]:
-            logger.info(f"Training OU: {ou_name} with model: {method}")
+            logger.warning(f"Training OU: {ou_name} with model: {method}")
 
             try:
-                ou_model = BehaviorModel(method, training_timestamp, config)
+                ou_model = BehaviorModel(method, ou_name, training_timestamp, config)
                 ou_model.train(X, y)
                 ou_model.save()
             except Exception as e:
