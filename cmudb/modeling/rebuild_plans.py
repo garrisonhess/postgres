@@ -7,7 +7,7 @@ from collections import defaultdict
 import numpy as np
 
 results_path = Path.home() / "postgres/cmudb/tscout/results/tpcc-default/"
-experiment = "2021-12-16_06-15-34"
+experiment = "2021-12-16_20-43-45"
 round = "0"
 data_path = results_path / experiment / round
 
@@ -75,15 +75,25 @@ df = df.sort_values(by=["query_id", "start_time", "plan_total_cost"], axis=0)
 df["query_id"] = df["query_id"].astype(np.uint64)
 df.to_csv("./test_ous.csv", index=False)
 
-
-
 ###### Sample data
-# temp = df[df["plan_node_id"] == 3]
-# temp_query_id = df["query_id"].unique()[0]
-temp_query_id = 413418709290753216
+temp_query_id = 2655768482901157376
 subdf = df[df["query_id"] == temp_query_id]
-subdf = subdf[["query_id", "ou_name", "plan_total_cost", "start_time", "end_time", "elapsed_us", "plan_node_id"]]
-subdf.to_csv("./modify_table_with_indexscan.csv", index=False)
+subdf = subdf[["query_id", "ou_name", "plan_startup_cost", "plan_total_cost", "start_time", "end_time", "elapsed_us", "plan_node_id"]]
+subdf.to_csv("./bigger_ou_results.csv", index=False)
+
+
+# max_plan_node_id = df["plan_node_id"].max()
+# temp = df[df["plan_node_id"] == max_plan_node_id]
+# print(temp)
+
+# for each query_id
+#   verify that the count for each plan_node_id is the same
+#   suppose we have plan_node_
+#   
+#   
+# for each query id
+# for each root node
+# 
 
 
 
@@ -102,8 +112,7 @@ subdf.to_csv("./modify_table_with_indexscan.csv", index=False)
 
 
 
-
-def rollup(df):
+def build_trees(df):
 
     rolled_up = df
 
