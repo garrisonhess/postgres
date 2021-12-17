@@ -45,3 +45,4 @@ lib*.pc
 /build/
 /.idea/
 /.vscode/
+/data/
