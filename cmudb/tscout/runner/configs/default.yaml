@@ -1,0 +1,7 @@
+build_pg: False
+build_bbase: False
+bench_db: tpcc
+sqlsmith: False # Use SQLSmith queries instead of default benchmark queries. 
+num_runs: 1
+prewarm: False
+log_level: INFO

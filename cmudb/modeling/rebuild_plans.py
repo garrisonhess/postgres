@@ -12,25 +12,36 @@ round = "0"
 data_path = results_path / experiment / round
 
 result_files = [file for file in data_path.glob("*.csv")]
-remap_schema = ["plan_startup_cost", "plan_total_cost", "plan_type", "plan_rows", "plan_width", "plan_node_id"]
-static_schema = ["query_id",
-                 "start_time",
-                 "end_time",
-                 "cpu_id",
-                 "cpu_cycles",
-                 "instructions",
-                 "cache_references",
-                 "cache_misses",
-                 "ref_cpu_cycles",
-                 "network_bytes_read",
-                 "network_bytes_written",
-                 "disk_bytes_read",
-                 "disk_bytes_written",
-                 "memory_bytes",
-                 "elapsed_us"]
+remap_schema = [
+    "plan_startup_cost",
+    "plan_total_cost",
+    "plan_type",
+    "plan_rows",
+    "plan_width",
+    "plan_node_id",
+]
+static_schema = [
+    "query_id",
+    "start_time",
+    "end_time",
+    "cpu_id",
+    "cpu_cycles",
+    "instructions",
+    "cache_references",
+    "cache_misses",
+    "ref_cpu_cycles",
+    "network_bytes_read",
+    "network_bytes_written",
+    "disk_bytes_read",
+    "disk_bytes_written",
+    "memory_bytes",
+    "elapsed_us",
+]
 
 # OU
-ou_to_df = {file.stem: pd.read_csv(file) for file in result_files if os.stat(file).st_size > 0}
+ou_to_df = {
+    file.stem: pd.read_csv(file) for file in result_files if os.stat(file).st_size > 0
+}
 dfs = []
 
 for ou_name, df in ou_to_df.items():
@@ -43,28 +54,30 @@ for ou_name, df in ou_to_df.items():
     df["ou_name"] = ou_name
     dfs.append(df)
 
-common_schema = ["query_id",
-                 "ou_name",
-                 "plan_startup_cost",
-                 "plan_total_cost",
-                 "plan_type",
-                 "plan_rows",
-                 "plan_width",
-                 "plan_node_id",
-                 "start_time",
-                 "end_time",
-                 "elapsed_us",
-                 "cpu_id",
-                 "cpu_cycles",
-                 "instructions",
-                 "cache_references",
-                 "cache_misses",
-                 "ref_cpu_cycles",
-                 "network_bytes_read",
-                 "network_bytes_written",
-                 "disk_bytes_read",
-                 "disk_bytes_written",
-                 "memory_bytes"]
+common_schema = [
+    "query_id",
+    "ou_name",
+    "plan_startup_cost",
+    "plan_total_cost",
+    "plan_type",
+    "plan_rows",
+    "plan_width",
+    "plan_node_id",
+    "start_time",
+    "end_time",
+    "elapsed_us",
+    "cpu_id",
+    "cpu_cycles",
+    "instructions",
+    "cache_references",
+    "cache_misses",
+    "ref_cpu_cycles",
+    "network_bytes_read",
+    "network_bytes_written",
+    "disk_bytes_read",
+    "disk_bytes_written",
+    "memory_bytes",
+]
 
 
 for i in range(len(dfs)):
@@ -78,7 +91,18 @@ df.to_csv("./test_ous.csv", index=False)
 ###### Sample data
 temp_query_id = 2655768482901157376
 subdf = df[df["query_id"] == temp_query_id]
-subdf = subdf[["query_id", "ou_name", "plan_startup_cost", "plan_total_cost", "start_time", "end_time", "elapsed_us", "plan_node_id"]]
+subdf = subdf[
+    [
+        "query_id",
+        "ou_name",
+        "plan_startup_cost",
+        "plan_total_cost",
+        "start_time",
+        "end_time",
+        "elapsed_us",
+        "plan_node_id",
+    ]
+]
 subdf.to_csv("./bigger_ou_results.csv", index=False)
 
 
@@ -89,27 +113,11 @@ subdf.to_csv("./bigger_ou_results.csv", index=False)
 # for each query_id
 #   verify that the count for each plan_node_id is the same
 #   suppose we have plan_node_
-#   
-#   
+#
+#
 # for each query id
 # for each root node
-# 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#
 
 
 def build_trees(df):

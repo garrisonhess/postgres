@@ -8,6 +8,9 @@ from pathlib import Path
 import shutil
 from datetime import datetime
 import psutil
+import yaml
+import logging
+
 
 BENCH_DBS = [
     "tpcc",
@@ -79,7 +82,11 @@ def check_orphans():
     This will throw an error if it finds *any* postgres processes.
     """
 
-    tscout_process_names = ["TScout Coordinator", "TScout Processor", "TScout Collector"]
+    tscout_process_names = [
+        "TScout Coordinator",
+        "TScout Processor",
+        "TScout Collector",
+    ]
     pg_procs = []
     tscout_procs = []
 
@@ -88,11 +95,20 @@ def check_orphans():
         if "postgres" in proc_name:
             pg_procs.append(proc)
 
-        if any([tscout_process_name in proc.info["name"] for tscout_process_name in tscout_process_names]):
+        if any(
+            [
+                tscout_process_name in proc.info["name"]
+                for tscout_process_name in tscout_process_names
+            ]
+        ):
             tscout_procs.append(proc)
 
-    assert len(pg_procs) == 0, f"Found active postgres processes from previous runs: {pg_procs}"
-    assert len(tscout_procs) == 0, f"Found active tscout processes from previous runs: {tscout_procs}"
+    assert (
+        len(pg_procs) == 0
+    ), f"Found active postgres processes from previous runs: {pg_procs}"
+    assert (
+        len(tscout_procs) == 0
+    ), f"Found active tscout processes from previous runs: {tscout_procs}"
 
 
 def init_pg(pg_dir, results_dir, runner_dir):
@@ -128,11 +144,15 @@ def init_pg(pg_dir, results_dir, runner_dir):
 
         # Turn on QueryID computation
         Popen(
-            args=['''./build/bin/psql -d test -c "ALTER DATABASE test SET compute_query_id = 'ON';"'''],
+            args=[
+                '''./build/bin/psql -d test -c "ALTER DATABASE test SET compute_query_id = 'ON';"'''
+            ],
             shell=True,
         ).wait()
         Popen(
-            args=['''./build/bin/psql -d benchbase -c "ALTER DATABASE benchbase SET compute_query_id = 'ON';"'''],
+            args=[
+                '''./build/bin/psql -d benchbase -c "ALTER DATABASE benchbase SET compute_query_id = 'ON';"'''
+            ],
             shell=True,
         ).wait()
 
@@ -156,9 +176,11 @@ def pg_analyze(pg_dir, bench_db, runner_dir):
             raise ValueError(f"Benchmark {bench_db} doesn't have tables setup yet.")
 
         for table in BENCH_TABLES[bench_db]:
-            print(f"Analyzing table: {table}")
+            logger.info(f"Analyzing table: {table}")
             Popen(
-                args=[f"""./build/bin/psql -d benchbase -c 'ANALYZE VERBOSE {table};'"""],
+                args=[
+                    f"""./build/bin/psql -d benchbase -c 'ANALYZE VERBOSE {table};'"""
+                ],
                 shell=True,
             ).wait()
     except Exception as err:
@@ -170,15 +192,22 @@ def pg_prewarm(pg_dir, bench_db, runner_dir):
 
     try:
         os.chdir(pg_dir)
-        Popen(args=['''./build/bin/psql -d benchbase -c "CREATE EXTENSION pg_prewarm"'''], shell=True).wait()
+        Popen(
+            args=['''./build/bin/psql -d benchbase -c "CREATE EXTENSION pg_prewarm"'''],
+            shell=True,
+        ).wait()
 
         if bench_db not in BENCH_TABLES.keys():
-            raise ValueError(f"Benchmark {bench_db} doesn't have prewarm tables setup yet.")
+            raise ValueError(
+                f"Benchmark {bench_db} doesn't have prewarm tables setup yet."
+            )
 
         for table in BENCH_TABLES[bench_db]:
-            print(f"Prewarming table: {table}")
+            logger.info(f"Prewarming table: {table}")
             Popen(
-                args=[f"""./build/bin/psql -d benchbase -c "select * from pg_prewarm('{table}')";"""],
+                args=[
+                    f"""./build/bin/psql -d benchbase -c "select * from pg_prewarm('{table}')";"""
+                ],
                 shell=True,
             ).wait()
     except Exception as err:
@@ -191,7 +220,9 @@ def init_tscout(tscout_dir, results_dir, runner_dir):
         # Make sure we're authed with sudo before running tscout in background
         Popen(args=["sudo pwd"], shell=True).wait()
         tscout_proc = Popen(
-            args=[f"sudo python3 tscout.py `pgrep -ox postgres` --outdir {results_dir} &"],
+            args=[
+                f"sudo python3 tscout.py `pgrep -ox postgres` --outdir {results_dir} &"
+            ],
             shell=True,
         )
     except Exception as err:
@@ -202,11 +233,13 @@ def init_tscout(tscout_dir, results_dir, runner_dir):
 
 
 def build_benchbase(benchbase_dir, runner_dir):
-    print("Building Benchbase")
+    logger.info("Building Benchbase")
 
     try:
         os.chdir(benchbase_dir)
-        benchbase_snapshot_path = benchbase_dir / "target" / "benchbase-2021-SNAPSHOT.zip"
+        benchbase_snapshot_path = (
+            benchbase_dir / "target" / "benchbase-2021-SNAPSHOT.zip"
+        )
         benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
         Popen(args=["./mvnw clean package"], shell=True).wait()
 
@@ -217,7 +250,9 @@ def build_benchbase(benchbase_dir, runner_dir):
         cleanup(runner_dir, err, terminate=True, message="Error building benchbase")
 
 
-def init_benchbase(benchbase_dir, bench_db, input_cfg_path, benchbase_results_dir, runner_dir):
+def init_benchbase(
+    benchbase_dir, bench_db, input_cfg_path, benchbase_results_dir, runner_dir
+):
     """Initialize Benchbase and load benchmark data"""
 
     try:
@@ -228,22 +263,28 @@ def init_benchbase(benchbase_dir, bench_db, input_cfg_path, benchbase_results_di
         os.chdir(benchbase_snapshot_dir)
 
         # move runner config to benchbase and also save it in the output directory
-        benchbase_cfg_path = benchbase_snapshot_dir / f"config/postgres/{bench_db}_config.xml"
+        benchbase_cfg_path = (
+            benchbase_snapshot_dir / f"config/postgres/{bench_db}_config.xml"
+        )
         shutil.copy(input_cfg_path, benchbase_cfg_path)
         shutil.copy(input_cfg_path, benchbase_results_dir)
 
-        print(f"Initializing Benchbase for DB: {bench_db}")
+        logger.info(f"Initializing Benchbase for DB: {bench_db}")
         benchbase_cmd = f"java -jar benchbase.jar -b {bench_db} -c config/postgres/{bench_db}_config.xml --create=true --load=true --execute=false"
         bbase_proc = Popen(args=[benchbase_cmd], shell=True)
         bbase_proc.wait()
         if bbase_proc.returncode != 0:
-            raise RuntimeError(f"Benchbase failed with return code: {bbase_proc.returncode}")
-        print(f"Initialized Benchbase for Benchmark: {bench_db}")
+            raise RuntimeError(
+                f"Benchbase failed with return code: {bbase_proc.returncode}"
+            )
+        logger.info(f"Initialized Benchbase for Benchmark: {bench_db}")
     except Exception as err:
         cleanup(runner_dir, err, terminate=True, message="Error initializing Benchbase")
 
 
-def exec_benchbase(benchbase_dir, bench_db, benchmark_name, benchbase_results_dir, runner_dir):
+def exec_benchbase(
+    benchbase_dir, bench_db, benchmark_name, benchbase_results_dir, runner_dir
+):
     """Execute Benchbase"""
 
     try:
@@ -254,14 +295,19 @@ def exec_benchbase(benchbase_dir, bench_db, benchmark_name, benchbase_results_di
         os.chdir(benchbase_snapshot_dir)
 
         # move runner config to benchbase and also save it in the output directory
-        benchbase_cfg_path = benchbase_snapshot_dir / f"config/postgres/{bench_db}_config.xml"
-        assert benchbase_cfg_path.exists(
+        benchbase_cfg_path = (
+            benchbase_snapshot_dir / f"config/postgres/{bench_db}_config.xml"
+        )
+        assert (
+            benchbase_cfg_path.exists()
         ), f"Benchbase config file not found. Must be setup during init_benchbase. File: {benchbase_cfg_path}"
         benchbase_cmd = f"java -jar benchbase.jar -b {bench_db} -c config/postgres/{bench_db}_config.xml --create=false --load=false --execute=true"
         bbase_proc = Popen(args=[benchbase_cmd], shell=True)
         bbase_proc.wait()
         if bbase_proc.returncode != 0:
-            raise RuntimeError(f"Benchbase failed with return code: {bbase_proc.returncode}")
+            raise RuntimeError(
+                f"Benchbase failed with return code: {bbase_proc.returncode}"
+            )
 
         # Move benchbase results to experiment results directory
         benchbase_stats_dir = benchbase_snapshot_dir / "results"
@@ -277,14 +323,16 @@ def cleanup(runner_dir, err, terminate, message=""):
     """Clean up the TScout and Postgres processes after either a successful or failed run"""
 
     if len(message) > 0:
-        print(message)
+        logger.error(message)
 
     if err is not None:
-        print(f"Error: {err}")
+        logger.error(f"Error: {err}")
 
     cleanup_script_path = runner_dir / "cleanup.py"
     username = psutil.Process().username()
-    Popen(args=[f"sudo python3 {cleanup_script_path} --username {username}"], shell=True).wait()
+    Popen(
+        args=[f"sudo python3 {cleanup_script_path} --username {username}"], shell=True
+    ).wait()
     time.sleep(2)  # Allow TScout poison pills to propagate
 
     # Exit the program if the caller requested it (only happens on error)
@@ -292,7 +340,7 @@ def cleanup(runner_dir, err, terminate, message=""):
         exit(1)
 
 
-def exec_sqlsmith(runner_dir, pg_dir, sqlsmith_dir):
+def exec_sqlsmith(runner_dir, pg_dir, sqlsmith_dir, bench_db):
 
     try:
         os.chdir(pg_dir)
@@ -308,21 +356,33 @@ def exec_sqlsmith(runner_dir, pg_dir, sqlsmith_dir):
             raise ValueError(f"Benchmark {bench_db} doesn't have tables setup yet.")
 
         for table in BENCH_TABLES[bench_db]:
-            print(f"Granting SQLSmith permissions on table: {table}")
+            logger.info(f"Granting SQLSmith permissions on table: {table}")
             Popen(
                 args=[
-                    f'''./build/bin/psql -d benchbase -c "GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO sqlsmith;"'''],
-                shell=True).wait()
+                    f'''./build/bin/psql -d benchbase -c "GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO sqlsmith;"'''
+                ],
+                shell=True,
+            ).wait()
 
         os.chdir(sqlsmith_dir)
-        sqlsmith_cmd = '''./sqlsmith --target="host=localhost port=5432 dbname=benchbase connect_timeout=10" --seed=42 --max-queries=10000 --exclude-catalog'''
+        sqlsmith_cmd = """./sqlsmith --target="host=localhost port=5432 dbname=benchbase connect_timeout=10" --seed=42 --max-queries=10000 --exclude-catalog"""
         Popen(args=[sqlsmith_cmd], shell=True).wait()
     except Exception as err:
         cleanup(runner_dir, err, terminate=True, message="Error running SQLSmith")
 
 
-def run(build_pg, build_bbase, bench_db, benchmark_name, experiment_name, nruns, prewarm, sqlsmith):
+def run(config_name):
     """Run an experiment"""
+
+    config = yaml.load(open(f"configs/{config_name}.yaml"), Loader=yaml.FullLoader)
+    experiment_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    benchmark_name = (
+        f"{config['bench_db']}-{'sqlsmith' if config['sqlsmith'] else 'default'}"
+    )
+    logger.setLevel(config["log_level"])
+
+    if config["bench_db"] not in BENCH_DBS:
+        raise ValueError(f"Invalid benchmark name: {benchmark_name}")
 
     # Setup directories here so the expected structure is (relatively) clear
     pg_dir = Path.home() / "postgres"
@@ -330,21 +390,25 @@ def run(build_pg, build_bbase, bench_db, benchmark_name, experiment_name, nruns,
     tscout_dir = cmudb_dir / "tscout"
     runner_dir = tscout_dir / "runner"
     benchbase_dir = Path.home() / "benchbase"
-    bench_db_cfg_path = runner_dir / "benchbase_configs" / f"{bench_db}_config.xml"
+    bench_db_cfg_path = (
+        runner_dir / "benchbase_configs" / f"{config['bench_db']}_config.xml"
+    )
     sqlsmith_dir = Path.home() / "sqlsmith"
     experiment_dir = tscout_dir / "results" / benchmark_name / experiment_name
     Path(experiment_dir).mkdir(parents=True, exist_ok=True)
 
-    if build_pg:
+    if config["build_pg"]:
         build_postgres(pg_dir, runner_dir)
 
-    if build_bbase:
+    if config["build_bbase"]:
         build_benchbase(benchbase_dir, runner_dir)
 
-    print(f"Running experiment: {experiment_name} with {nruns} runs and experiment output dir: {experiment_dir}")
+    logger.info(
+        f"Running experiment: {experiment_name} with {config['num_runs']} runs and experiment output dir: {experiment_dir}"
+    )
 
-    for run_id in range(nruns):
-        print(f"Starting run {run_id}")
+    for run_id in range(config["num_runs"]):
+        logger.info(f"Starting run {run_id}")
         check_orphans()  # Check for orphaned processes from prior runs
 
         # Create output directories for this run
@@ -355,18 +419,30 @@ def run(build_pg, build_bbase, bench_db, benchmark_name, experiment_name, nruns,
 
         pg_log_file = init_pg(pg_dir, results_dir, runner_dir)
 
-        init_benchbase(benchbase_dir, bench_db, bench_db_cfg_path, benchbase_results_dir, runner_dir)
+        init_benchbase(
+            benchbase_dir,
+            config["bench_db"],
+            bench_db_cfg_path,
+            benchbase_results_dir,
+            runner_dir,
+        )
 
-        if prewarm:
-            pg_analyze(pg_dir, bench_db, runner_dir)
-            pg_prewarm(pg_dir, bench_db, runner_dir)
+        if config["prewarm"]:
+            pg_analyze(pg_dir, config["bench_db"], runner_dir)
+            pg_prewarm(pg_dir, config["bench_db"], runner_dir)
 
         tscout_proc = init_tscout(tscout_dir, results_dir, runner_dir)
 
-        if sqlsmith:
-            exec_sqlsmith(runner_dir, pg_dir, sqlsmith_dir)
+        if config["prewarm"]:
+            exec_sqlsmith(runner_dir, pg_dir, sqlsmith_dir, config["bench_db"])
         else:
-            exec_benchbase(benchbase_dir, bench_db, benchmark_name, benchbase_results_dir, runner_dir)
+            exec_benchbase(
+                benchbase_dir,
+                config["bench_db"],
+                benchmark_name,
+                benchbase_results_dir,
+                runner_dir,
+            )
 
         pg_log_file.close()
         cleanup(runner_dir, err=None, terminate=False, message=f"Finished run {run_id}")
@@ -374,30 +450,11 @@ def run(build_pg, build_bbase, bench_db, benchmark_name, experiment_name, nruns,
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run an experiment with Postgres, Benchbase, and TScout")
-    parser.add_argument("--build-pg", action="store_true", default=False)
-    parser.add_argument("--build-bbase", action="store_true", default=False)
-    parser.add_argument("--bench-db", default="tpcc", help=f"Benchmark databases include: {BENCH_DBS}")
-    parser.add_argument("--sqlsmith", action="store_true", default=False,
-                        help="Use SQLSmith queries instead of default benchmark queries.")
-    parser.add_argument("--experiment-name", default=datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
-    parser.add_argument("--nruns", type=int, default=1)
-    parser.add_argument("--no-prewarm", action="store_true", default=False)
-
+    parser = argparse.ArgumentParser(
+        description="Run an experiment with Postgres, Benchbase, and TScout"
+    )
+    parser.add_argument("--config", type=str, default="default")
     args = parser.parse_args()
-    build_pg = args.build_pg
-    build_bbase = args.build_bbase
-    bench_db = args.bench_db
-    benchmark_name = f"{args.bench_db}-{'sqlsmith' if args.sqlsmith else 'default'}"
-    experiment_name = args.experiment_name
-    nruns = args.nruns
-    prewarm = not args.no_prewarm
-    sqlsmith = args.sqlsmith
-
-    if nruns <= 0 or nruns > 10:
-        raise ValueError("Invalid nruns: {runs}")
-
-    if bench_db not in BENCH_DBS:
-        raise ValueError(f"Invalid benchmark name: {benchmark_name}")
-
-    run(build_pg, build_bbase, bench_db, benchmark_name, experiment_name, nruns, prewarm, sqlsmith)
+    logger = logging.getLogger("modeling")
+    
+    run(config_name=args.config)

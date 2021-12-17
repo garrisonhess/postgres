@@ -1,129 +1,124 @@
 #!/usr/bin/env python3
 
 import numpy as np
-import lightgbm as lgb
-from sklearn import (
-    linear_model,
-    ensemble,
-    preprocessing,
-    neural_network,
-    multioutput,
-    tree,
+from lightgbm import LGBMRegressor
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.neural_network import MLPRegressor
+from sklearn.multioutput import MultiOutputRegressor
+from sklearn.linear_model import (
+    LinearRegression,
+    HuberRegressor,
+    MultiTaskLasso,
+    Lasso,
+    ElasticNet,
+    MultiTaskElasticNet,
 )
 from sklearn.tree import DecisionTreeRegressor
-
-_LOGTRANS_EPS = 1e-4
-
-METHODS = [
-    "lr",
-    "huber",
-    "svr",
-    "kr",
-    "rf",
-    "gbm",
-    "nn",
-    "mt_lasso",
-    "lasso",
-    "dt",
-    "mt_elastic",
-    "elastic",
-]
+from sklearn.preprocessing import StandardScaler, RobustScaler
+from sklearn.tree import DecisionTreeRegressor
+import pickle
+from config import METHODS, MODEL_DIR
 
 
-def _get_base_ml_model(method):
+def get_model(method, config):
     if method not in METHODS:
         raise ValueError(f"Unknown method: {method}")
 
     regressor = None
     if method == "lr":
-        regressor = linear_model.LinearRegression(n_jobs=8)
+        regressor = LinearRegression(n_jobs=config["num_jobs"])
     if method == "huber":
-        regressor = linear_model.HuberRegressor(max_iter=50)
-        regressor = multioutput.MultiOutputRegressor(regressor)
+        regressor = HuberRegressor(max_iter=config["huber"]["max_iter"])
+        regressor = MultiOutputRegressor(regressor)
     if method == "rf":
-        regressor = ensemble.RandomForestRegressor(n_estimators=50, criterion="absolute_error", n_jobs=8)
-    if method == "gbm":
-        regressor = lgb.LGBMRegressor(
-            max_depth=31,
-            num_leaves=1000,
-            n_estimators=100,
-            min_child_samples=5,
-            random_state=42,
+        regressor = RandomForestRegressor(
+            n_estimators=config["rf"]["n_estimators"],
+            criterion=config["rf"]["criterion"],
+            n_jobs=config["num_jobs"],
         )
-        regressor = multioutput.MultiOutputRegressor(regressor)
+    if method == "gbm":
+        regressor = LGBMRegressor(
+            max_depth=config["gbm"]["max_depth"],
+            num_leaves=config["gbm"]["num_leaves"],
+            n_estimators=config["gbm"]["n_estimators"],
+            min_child_samples=config["gbm"]["min_child_samples"],
+            random_state=config["random_state"],
+        )
+        regressor = MultiOutputRegressor(regressor)
     if method == "nn":
-        regressor = neural_network.MLPRegressor(
-            hidden_layer_sizes=(25, 25), early_stopping=True, max_iter=1000000, alpha=5
+        hls = tuple(dim for dim in config["mlp"]["hidden_layers"])
+        regressor = MLPRegressor(
+            hidden_layer_sizes=hls,
+            early_stopping=config["mlp"]["early_stopping"],
+            max_iter=config["mlp"]["max_iter"],
+            alpha=config["mlp"]["alpha"],
         )
     if method == "mt_lasso":
-        regressor = linear_model.MultiTaskLasso(alpha=1.0)
+        regressor = MultiTaskLasso(alpha=config["mt_lasso"]["alpha"])
     if method == "lasso":
-        regressor = linear_model.Lasso(alpha=1.0)
+        regressor = Lasso(alpha=config["lasso"]["alpha"])
     if method == "dt":
-        regressor = DecisionTreeRegressor(max_depth=3)
-        regressor = multioutput.MultiOutputRegressor(regressor)
+        regressor = DecisionTreeRegressor(max_depth=config["dt"]["max_depth"])
+        regressor = MultiOutputRegressor(regressor)
     if method == "elastic":
-        regressor = linear_model.ElasticNet(alpha=0.1, l1_ratio=0.5)
-        regressor = multioutput.MultiOutputRegressor(regressor)
+        regressor = ElasticNet(
+            alpha=config["elastic"]["alpha"], l1_ratio=config["elastic"]["l1_ratio"]
+        )
+        regressor = MultiOutputRegressor(regressor)
     if method == "mt_elastic":
-        regressor = linear_model.MultiTaskElasticNet(l1_ratio=0.5)
+        regressor = MultiTaskElasticNet(l1_ratio=config["mt_elastic"]["l1_ratio"])
 
     return regressor
 
 
-class Model:
-    """
-    The class that wraps around standard ML libraries.
-    With the implementation for different normalization handlings
-    """
-
-    def __init__(self, method, normalize=True, log_transform=True, robust=False):
+class BehaviorModel:
+    def __init__(self, method, timestamp, config):
         """
         :param method: which ML method to use
         :param normalize: whether to perform standard normalization on data (both x and y)
         :param log_transform: whether to perform log transformation on data (both x and y)
         """
 
-        self._base_model = _get_base_ml_model(method)
-        self._normalize = normalize
-        self._log_transform = log_transform
-        self._xscaler = (
-            preprocessing.StandardScaler()
-            if not robust
-            else preprocessing.RobustScaler()
-        )
-        self._yscaler = (
-            preprocessing.StandardScaler()
-            if not robust
-            else preprocessing.RobustScaler()
-        )
+        self.method = method
+        self.timestamp = timestamp
+        self.model_name = f"{method}_{timestamp}"
+        self.model = get_model(method, config)
+        self.normalize = config["normalize"]
+        self.log_transform = config["log_transform"]
+        self.eps = 1e-4
+        self.xscaler = RobustScaler() if config["robust"] else StandardScaler()
+        self.yscaler = RobustScaler() if config["robust"] else StandardScaler()
 
     def train(self, x, y):
-        if self._log_transform:
-            x = np.log(x + _LOGTRANS_EPS)
-            y = np.log(y + _LOGTRANS_EPS)
+        if self.log_transform:
+            x = np.log(x + self.eps)
+            y = np.log(y + self.eps)
 
-        if self._normalize:
-            x = self._xscaler.fit_transform(x)
-            y = self._yscaler.fit_transform(y)
+        if self.normalize:
+            x = self.xscaler.fit_transform(x)
+            y = self.yscaler.fit_transform(y)
 
-        self._base_model.fit(x, y)
+        self.model.fit(x, y)
 
     def predict(self, x):
         # transform the features
-        if self._log_transform:
-            x = np.log(x + _LOGTRANS_EPS)
-        if self._normalize:
-            x = self._xscaler.transform(x)
+        if self.log_transform:
+            x = np.log(x + self.eps)
+        if self.normalize:
+            x = self.xscaler.transform(x)
 
         # make prediction
-        y = self._base_model.predict(x)
+        y = self.model.predict(x)
 
         # transform the y back
-        if self._normalize:
-            y = self._yscaler.inverse_transform(y)
-        if self._log_transform:
-            y = np.exp(y) - _LOGTRANS_EPS
+        if self.normalize:
+            y = self.yscaler.inverse_transform(y)
+        if self.log_transform:
+            y = np.exp(y) - self.eps
             y = np.clip(y, 0, None)
 
         return y
+
+    def save(self):
+        with open(MODEL_DIR / self.model_name, "wb") as f:
+            pickle.dump(self.model, f)
