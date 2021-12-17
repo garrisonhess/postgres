@@ -3,13 +3,10 @@
 import argparse
 from datetime import datetime
 import os
-from pathlib import Path
 import pandas as pd
 import yaml
 from model import BehaviorModel
-from config import OU_NAMES, BENCH_DBS, TARGET_COLS, CONFIG_DIR, EVAL_DIR, DATA_DIR
-import logging
-
+from behavior_modeling import OU_NAMES, BENCH_DBS, TARGET_COLS, CONFIG_DIR, EVAL_DIR, DATA_DIR, logger
 
 def load_data(experiment_dir):
     result_paths = [fp for fp in experiment_dir.glob("**/*.csv")]
@@ -69,12 +66,9 @@ if __name__ == "__main__":
     with open(config_path, "r") as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
 
-    benchmark_name = (
-        f"{config['bench_db']}-{'sqlsmith' if config['sqlsmith'] else 'default'}"
-    )
+    benchmark_name = config['train_bench_dbs'][0]
     training_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    logger = logging.getLogger()
-    logger.setLevel(config["log_level"])
+
 
     if config["bench_db"] not in BENCH_DBS:
         raise ValueError(f"Benchmark DB {config['bench_db']} not supported")
@@ -89,9 +83,7 @@ if __name__ == "__main__":
         logger.warning(f"{benchmark_name} experiments: {experiment_list}")
         assert len(experiment_list) > 0, f"No experiments found for {benchmark_name}"
         experiment_name = experiment_list[-1]
-        logger.warning(
-            f"Experiment name was not provided, using experiment: {experiment_name}"
-        )
+        logger.warning(f"Experiment name was not provided, using experiment: {experiment_name}")
 
     experiment_dir = benchmark_results_dir / experiment_name
     evaluation_dir = EVAL_DIR / benchmark_name / experiment_name
@@ -115,7 +107,5 @@ if __name__ == "__main__":
                 ou_model.train(X, y)
                 ou_model.save()
             except Exception as e:
-                logger.warning(
-                    f"Exception encountered during training OU {ou_name}: {e}"
-                )
+                logger.warning(f"Exception encountered during training OU {ou_name}: {e}")
                 continue

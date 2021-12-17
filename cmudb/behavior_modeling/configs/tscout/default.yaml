@@ -1,0 +1,6 @@
+build_pg: False
+build_bbase: False
+bench_dbs: [tpcc-default]
+num_runs: 1
+prewarm: True
+log_level: INFO

@@ -1,7 +1,6 @@
 # Training Configuration
-bench_db: tpcc
+train_bench_dbs: [tpcc-default]
 experiment_name: null
-sqlsmith: False
 methods: [rf]
 normalize: True
 log_transform: False
@@ -37,3 +36,7 @@ lasso:
   alpha: 1.0
 mt_lasso: 
   alpha: 1.0
+
+
+###### Evaluation Config
+eval_bench_dbs: [tpcc-default]

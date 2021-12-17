@@ -11,58 +11,6 @@ import psutil
 import yaml
 import logging
 
-
-BENCH_DBS = [
-    "tpcc",
-    "tpch",
-    "ycsb",
-    "wikipedia",
-    "voter",
-    "twitter",
-    "tatp",
-    "smallbank",
-    "sibench",
-    "seats",
-    "resourcestresser",
-    "noop",
-    "hyadapt",
-    "epinions",
-    "chbenchmark",
-    "auctionmark",
-]
-
-
-BENCH_TABLES = {
-    "tpcc": [
-        "warehouse",
-        "district",
-        "customer",
-        "item",
-        "stock",
-        "oorder",
-        "history",
-        "order_line",
-        "new_order",
-    ],
-    "tatp": [
-        "subscriber",
-        "special_facility",
-        "access_info",
-        "call_forwarding",
-    ],
-    "tpch": [
-        "region",
-        "nation",
-        "customer",
-        "supplier",
-        "part",
-        "orders",
-        "partsupp",
-        "lineitem",
-    ],
-}
-
-
 def build_postgres(pg_dir, runner_dir):
     """Build Postgres (and extensions)"""
 
@@ -390,9 +338,7 @@ def run(config_name):
     tscout_dir = cmudb_dir / "tscout"
     runner_dir = tscout_dir / "runner"
     benchbase_dir = Path.home() / "benchbase"
-    bench_db_cfg_path = (
-        runner_dir / "benchbase_configs" / f"{config['bench_db']}_config.xml"
-    )
+    bench_db_cfg_path = runner_dir / "benchbase_configs" / f"{config['bench_dbs']}_config.xml"
     sqlsmith_dir = Path.home() / "sqlsmith"
     experiment_dir = tscout_dir / "results" / benchmark_name / experiment_name
     Path(experiment_dir).mkdir(parents=True, exist_ok=True)

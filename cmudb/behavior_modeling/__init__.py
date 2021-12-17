@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 
 BENCH_DBS = [
     "tpcc",
@@ -18,6 +19,38 @@ BENCH_DBS = [
     "chbenchmark",
     "auctionmark",
 ]
+
+
+BENCH_TABLES = {
+    "tpcc": [
+        "warehouse",
+        "district",
+        "customer",
+        "item",
+        "stock",
+        "oorder",
+        "history",
+        "order_line",
+        "new_order",
+    ],
+    "tatp": [
+        "subscriber",
+        "special_facility",
+        "access_info",
+        "call_forwarding",
+    ],
+    "tpch": [
+        "region",
+        "nation",
+        "customer",
+        "supplier",
+        "part",
+        "orders",
+        "partsupp",
+        "lineitem",
+    ],
+}
+
 
 OU_NAMES = [
     "ExecAgg",
@@ -92,3 +125,8 @@ MODELING_DIR = Path.home() / "postgres/cmudb/modeling"
 CONFIG_DIR = MODELING_DIR / "configs"
 EVAL_DIR = MODELING_DIR / "evaluations"
 MODEL_DIR = MODELING_DIR / "models"
+
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
