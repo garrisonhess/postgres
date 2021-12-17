@@ -303,11 +303,10 @@ def processor(ou, buffered_strings, outdir):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TScout")
     parser.add_argument("pid", type=int, help="Postmaster PID that we're attaching to")
-    parser.add_argument("--outdir", required=False, default=Path.cwd(), help="Training data output directory")
+    parser.add_argument("--outdir", required=False, default=".", help="Training data output directory")
     args = parser.parse_args()
     pid = args.pid
     outdir = args.outdir
-    Path(outdir).mkdir(parents=True, exist_ok=True)
 
     postgres = PostgresInstance(pid)
 
