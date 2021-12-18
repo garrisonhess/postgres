@@ -112,7 +112,7 @@ METHODS = [
     "kr",
     "rf",
     "gbm",
-    "nn",
+    "mlp",
     "mt_lasso",
     "lasso",
     "dt",

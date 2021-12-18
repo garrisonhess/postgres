@@ -15,9 +15,8 @@ from sklearn.linear_model import (
 )
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.preprocessing import StandardScaler, RobustScaler
-from sklearn.tree import DecisionTreeRegressor
 import pickle
-from config import METHODS, MODEL_DIR
+from behavior_modeling import METHODS, MODEL_DIR
 
 
 def get_model(method, config):
@@ -45,7 +44,7 @@ def get_model(method, config):
             random_state=config["random_state"],
         )
         regressor = MultiOutputRegressor(regressor)
-    if method == "nn":
+    if method == "mlp":
         hls = tuple(dim for dim in config["mlp"]["hidden_layers"])
         regressor = MLPRegressor(
             hidden_layer_sizes=hls,

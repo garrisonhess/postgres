@@ -10,6 +10,7 @@ from datetime import datetime
 import psutil
 import yaml
 import logging
+from behavior_modeling import BENCH_TABLES, BENCH_DBS
 
 def build_postgres(pg_dir, runner_dir):
     """Build Postgres (and extensions)"""
