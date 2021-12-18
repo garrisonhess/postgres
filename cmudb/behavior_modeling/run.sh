@@ -1,7 +1,4 @@
 #!/bin/bash
 
-# Generate the data
-./datagen/datagen.py
-
-# Train, evaluate, and serialize models
-./train.py
+# generate data and train-evaluate-serialize models
+./datagen.py && ./train.py

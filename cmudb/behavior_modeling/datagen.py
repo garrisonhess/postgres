@@ -12,56 +12,7 @@ from subprocess import Popen
 import psutil
 import yaml
 
-BENCH_DBS = [
-    "tpcc",
-    "tpch",
-    "ycsb",
-    "wikipedia",
-    "voter",
-    "twitter",
-    "tatp",
-    "smallbank",
-    "sibench",
-    "seats",
-    "resourcestresser",
-    "noop",
-    "hyadapt",
-    "epinions",
-    "chbenchmark",
-    "auctionmark",
-]
-
-
-BENCH_TABLES = {
-    "tpcc": [
-        "warehouse",
-        "district",
-        "customer",
-        "item",
-        "stock",
-        "oorder",
-        "history",
-        "order_line",
-        "new_order",
-    ],
-    "tatp": [
-        "subscriber",
-        "special_facility",
-        "access_info",
-        "call_forwarding",
-    ],
-    "tpch": [
-        "region",
-        "nation",
-        "customer",
-        "supplier",
-        "part",
-        "orders",
-        "partsupp",
-        "lineitem",
-    ],
-}
-
+from config import BENCH_DBS, BENCH_TABLES, DATA_ROOT
 
 logger = logging.getLogger("datagen")
 logger.setLevel("INFO")
@@ -71,10 +22,9 @@ tscout_dir = cmudb_dir / "tscout"
 benchbase_dir = Path.home() / "benchbase"
 benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
 benchbase_snapshot_path = benchbase_dir / "target" / "benchbase-2021-SNAPSHOT.zip"
-datagen_dir = cmudb_dir / "behavior_modeling/datagen"
-cleanup_script_path = datagen_dir / "cleanup.py"
+behavior_modeling_dir = cmudb_dir / "behavior_modeling"
+cleanup_script_path = behavior_modeling_dir / "cleanup.py"
 sqlsmith_dir = Path.home() / "sqlsmith"
-out_data_root = cmudb_dir / "behavior_modeling/training_data/"
 
 
 def build_postgres():
@@ -243,7 +193,7 @@ def init_benchbase(bench_db):
         os.chdir(benchbase_snapshot_dir)
 
         # move runner config to benchbase and also save it in the output directory
-        input_cfg_path = datagen_dir / f"config/benchbase/{bench_db}_config.xml"
+        input_cfg_path = behavior_modeling_dir / f"config/datagen/benchbase/{bench_db}_config.xml"
         benchbase_cfg_path = benchbase_snapshot_dir / f"config/postgres/{bench_db}_config.xml"
         shutil.copy(input_cfg_path, benchbase_cfg_path)
         shutil.copy(input_cfg_path, benchbase_results_dir)
@@ -359,7 +309,7 @@ if __name__ == "__main__":
     config_name = args.config
 
     # Load datagen config
-    config_path = datagen_dir / f"config/{config_name}.yaml"
+    config_path = behavior_modeling_dir / f"config/datagen/{config_name}.yaml"
     config = yaml.load(open(config_path, "r"), Loader=yaml.FullLoader)
     logger.setLevel(config["log_level"])
 
@@ -379,7 +329,7 @@ if __name__ == "__main__":
     experiment_name = f"experiment-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
 
     for mode in ["train", "eval"]:
-        mode_dir = out_data_root / mode / experiment_name
+        mode_dir = DATA_ROOT / mode / experiment_name
 
         for bench_db in bench_dbs:
             results_dir = mode_dir / bench_db

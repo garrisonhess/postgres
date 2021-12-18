@@ -4,7 +4,7 @@ psutil
 pyyaml
 setuptools
 pandas
-sklearn
+sklearn>=1.0.0
 pydotplus
 lightgbm
 isort

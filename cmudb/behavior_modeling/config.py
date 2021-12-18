@@ -15,7 +15,6 @@ BENCH_DBS = [
     "resourcestresser",
     "noop",
     "epinions",
-    "chbenchmark",
     "auctionmark",
 ]
 
@@ -51,7 +50,8 @@ BENCH_TABLES = {
     "wikipedia": [
         "useracct",
         "watchlist",
-        "ipblocks" "logging",
+        "ipblocks",
+        "logging",
         "user_groups",
         "recentchanges",
         "page",
@@ -62,9 +62,7 @@ BENCH_TABLES = {
     "voter": [
         "contestants",
         "votes",
-        "v_votes_by_contestant_number_state",
         "area_code_state",
-        "v_votes_by_phone_number",
     ],
     "twitter": ["user_profiles", "tweets", "follows", "added_tweets", "followers"],
     "smallbank": ["accounts", "checking", "savings"],
@@ -84,19 +82,6 @@ BENCH_TABLES = {
     "resourcestresser": ["iotable", "cputable", "iotablesmallrow", "locktable"],
     "noop": ["fake"],
     "epinions": ["item", "review", "useracct", "trust", "review_rating"],
-    "chbenchmark": [
-        "warehouse",
-        "district",
-        "region",
-        "nation",
-        "supplier",
-        "customer",
-        "item",
-        "history",
-        "oorder",
-        "order_line",
-        "new_order",
-    ],
     "auctionmark": [
         "region",
         "useracct",
@@ -190,7 +175,7 @@ METHODS = [
 
 DATA_ROOT = Path.home() / "postgres/cmudb/behavior_modeling/training_data"
 MODELING_DIR = Path.home() / "postgres/cmudb/behavior_modeling"
-MODEL_CONFIG_DIR = MODELING_DIR / "config"
+MODEL_CONFIG_DIR = MODELING_DIR / "config" / "modeling"
 MODEL_DIR = MODELING_DIR / "models"
 TRAIN_DATA_ROOT = DATA_ROOT / "train"
 EVAL_DATA_ROOT = DATA_ROOT / "eval"

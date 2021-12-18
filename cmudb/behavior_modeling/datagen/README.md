@@ -1,1 +1,0 @@
-Training data generation using Benchbase, TScout, and Postgres.

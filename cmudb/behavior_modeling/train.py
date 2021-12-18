@@ -165,16 +165,9 @@ if __name__ == "__main__":
 
         for method in config["methods"]:
             logger.warning(f"Training OU: {ou_name} with model: {method}")
-
-            try:
-                ou_model = BehaviorModel(method, ou_name, training_timestamp, config, feat_cols, target_cols)
-                ou_model.train(X_train, y_train)
-                ou_model.save()
-                evaluate(ou_model, X_train, y_train, output_dir, train_bench_db, mode="train")
-
-                X_eval, y_eval = prep_eval_data(eval_ou_to_df[ou_name], feat_cols, target_cols)
-                evaluate(ou_model, X_eval, y_eval, output_dir, eval_bench_db, mode="eval")
-
-            except Exception as e:
-                logger.warning(f"Exception encountered during training OU {ou_name}: {e}")
-                continue
+            ou_model = BehaviorModel(method, ou_name, training_timestamp, config, feat_cols, target_cols)
+            ou_model.train(X_train, y_train)
+            ou_model.save()
+            evaluate(ou_model, X_train, y_train, output_dir, train_bench_db, mode="train")
+            X_eval, y_eval = prep_eval_data(eval_ou_to_df[ou_name], feat_cols, target_cols)
+            evaluate(ou_model, X_eval, y_eval, output_dir, eval_bench_db, mode="eval")

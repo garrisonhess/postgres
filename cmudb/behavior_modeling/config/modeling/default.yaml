@@ -1,6 +1,6 @@
-# Training Configuration
+# Training/Evaluation Configuration
 train_bench_dbs: [tpcc]
-eval_bench_dbs: [tatp]
+eval_bench_dbs: [tpcc]
 experiment_name: null
 methods: [rf]
 normalize: True
