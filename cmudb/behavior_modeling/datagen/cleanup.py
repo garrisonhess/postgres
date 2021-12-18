@@ -4,17 +4,10 @@ import psutil
 import shutil
 from pathlib import Path
 import argparse
-import signal
-import os
-
 
 def kill_tscout_and_postgres():
     print("Shutting down TScout and Postgres")
-    tscout_process_names = [
-        "TScout Coordinator",
-        "TScout Processor",
-        "TScout Collector",
-    ]
+    tscout_process_names = ["TScout Coordinator", "TScout Processor", "TScout Collector"]
 
     try:
         for proc in psutil.process_iter(["name", "pid"]):
@@ -34,13 +27,6 @@ def kill_tscout_and_postgres():
                     proc.kill()
                 except (psutil.NoSuchProcess, psutil.ZombieProcess):
                     pass
-            # elif "TScout Coordinator" in proc.info["name"]: # this is supposed to be the safer way to shutdown tscout but it isn't working yet
-            #     try:
-            #         print(f"Sending SIGINT to process: {proc}")
-            #         # proc.send_signal(signal.SIGINT)
-            #         os.kill(proc.info["pid"], signal.SIGINT)
-            #     except (psutil.NoSuchProcess, psutil.ZombieProcess):
-            #         pass
         print("Shutdown TScout and Postgres successfully")
     except Exception as err:
         print(f"Error shutting down TScout and Postgres: {err}")
@@ -58,9 +44,7 @@ def chown_results(username):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Postgres/Benchbase/TScout")
-    parser.add_argument(
-        "--username", help="Username to reassign file ownership", required=False
-    )
+    parser.add_argument("--username", help="Username to reassign file ownership", required=False)
     args = parser.parse_args()
 
     kill_tscout_and_postgres()

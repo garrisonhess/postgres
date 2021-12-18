@@ -9,8 +9,61 @@ import shutil
 from datetime import datetime
 import psutil
 import yaml
-from behavior_modeling import BENCH_TABLES, BENCH_DBS, logger
+import logging
 
+BENCH_DBS = [
+    "tpcc",
+    "tpch",
+    "ycsb",
+    "wikipedia",
+    "voter",
+    "twitter",
+    "tatp",
+    "smallbank",
+    "sibench",
+    "seats",
+    "resourcestresser",
+    "noop",
+    "hyadapt",
+    "epinions",
+    "chbenchmark",
+    "auctionmark",
+]
+
+
+BENCH_TABLES = {
+    "tpcc": [
+        "warehouse",
+        "district",
+        "customer",
+        "item",
+        "stock",
+        "oorder",
+        "history",
+        "order_line",
+        "new_order",
+    ],
+    "tatp": [
+        "subscriber",
+        "special_facility",
+        "access_info",
+        "call_forwarding",
+    ],
+    "tpch": [
+        "region",
+        "nation",
+        "customer",
+        "supplier",
+        "part",
+        "orders",
+        "partsupp",
+        "lineitem",
+    ],
+}
+
+
+logger = logging.getLogger("datagen")
+logger.setLevel("INFO")
 pg_dir = Path.home() / "postgres"
 cmudb_dir = pg_dir / "cmudb"
 tscout_dir = cmudb_dir / "tscout"
@@ -185,7 +238,7 @@ def build_benchbase(benchbase_dir):
         cleanup(err, terminate=True, message="Error building benchbase")
 
 
-def init_benchbase(bench_db, input_cfg_path):
+def init_benchbase(bench_db):
     """Initialize Benchbase and load benchmark data"""
 
     try:
@@ -291,12 +344,12 @@ def run(bench_db, results_dir):
     
     check_orphans()
 
-    pg_log_file = init_pg(pg_dir, results_dir)
+    pg_log_file = init_pg(results_dir)
     init_benchbase(bench_db)
 
     if config["prewarm"]:
-        pg_analyze(pg_dir, config["bench_db"])
-        pg_prewarm(pg_dir, config["bench_db"])
+        pg_analyze(bench_db)
+        pg_prewarm(bench_db)
 
     tscout_proc = init_tscout(results_dir)
     exec_benchbase(bench_db)
@@ -333,9 +386,10 @@ if __name__ == "__main__":
     experiment_name = f"experiment-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
 
     for mode in ["train", "eval"]:
-        results_dir = out_data_root / mode / experiment_name
+        mode_dir = out_data_root / mode / experiment_name
 
         for bench_db in bench_dbs:
+            results_dir = mode_dir / bench_db
             Path(results_dir).mkdir(parents=True, exist_ok=True)
             benchbase_results_dir = results_dir / "benchbase"
             Path(benchbase_results_dir).mkdir(exist_ok=True)

@@ -1,5 +1,6 @@
 # Training Configuration
-train_bench_dbs: [tpcc-default]
+train_bench_dbs: [tpcc]
+eval_bench_dbs: [tatp]
 experiment_name: null
 methods: [rf]
 normalize: True
@@ -11,8 +12,9 @@ log_level: INFO
 
 # Model-specific Configuration
 rf: 
-  n_estimators: 25
-  criterion: "absolute_error"
+  n_estimators: 5
+  max_depth: 31
+  criterion: "squared_error"
 lgbm: 
   max_depth: 31
   num_leaves: 1000
@@ -36,7 +38,3 @@ lasso:
   alpha: 1.0
 mt_lasso: 
   alpha: 1.0
-
-
-###### Evaluation Config
-eval_bench_dbs: [tpcc-default]

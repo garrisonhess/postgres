@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#/usr/bin/env python3
 
 import numpy as np
 from lightgbm import LGBMRegressor
@@ -16,7 +16,8 @@ from sklearn.linear_model import (
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.preprocessing import StandardScaler, RobustScaler
 import pickle
-from behavior_modeling import METHODS, MODEL_DIR
+from pathlib import Path
+from config import METHODS, MODEL_DIR
 
 
 def get_model(method, config):
@@ -33,6 +34,8 @@ def get_model(method, config):
         regressor = RandomForestRegressor(
             n_estimators=config["rf"]["n_estimators"],
             criterion=config["rf"]["criterion"],
+            max_depth=config["rf"]["max_depth"],
+            random_state=config["random_state"],
             n_jobs=config["num_jobs"],
         )
     if method == "gbm":
@@ -71,7 +74,7 @@ def get_model(method, config):
 
 
 class BehaviorModel:
-    def __init__(self, method, ou_name, timestamp, config):
+    def __init__(self, method, ou_name, timestamp, config, features, targets):
         """
         :param method: which ML method to use
         :param normalize: whether to perform standard normalization on data (both x and y)
@@ -82,6 +85,8 @@ class BehaviorModel:
         self.timestamp = timestamp
         self.ou_name = ou_name
         self.model = get_model(method, config)
+        self.features = features
+        self.targets = targets
         self.normalize = config["normalize"]
         self.log_transform = config["log_transform"]
         self.eps = 1e-4

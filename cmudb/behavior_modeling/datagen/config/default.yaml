@@ -3,5 +3,5 @@ build_bbase: False
 num_runs: 1
 prewarm: True
 log_level: INFO
-bench_dbs: [tpcc]
+bench_dbs: [tpcc, tatp]
 sqlsmith: False
