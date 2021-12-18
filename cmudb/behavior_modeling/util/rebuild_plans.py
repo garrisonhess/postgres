@@ -1,8 +1,9 @@
-from pathlib import Path
-import pandas as pd
 import os
 from collections import defaultdict
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
 
 results_path = Path.home() / "postgres/cmudb/tscout/results/tpcc-default/"
 experiment = "2021-12-16_20-43-45"
@@ -37,9 +38,7 @@ static_schema = [
 ]
 
 # OU
-ou_to_df = {
-    file.stem: pd.read_csv(file) for file in result_files if os.stat(file).st_size > 0
-}
+ou_to_df = {file.stem: pd.read_csv(file) for file in result_files if os.stat(file).st_size > 0}
 dfs = []
 
 for ou_name, df in ou_to_df.items():

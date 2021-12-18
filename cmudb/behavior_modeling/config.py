@@ -1,5 +1,5 @@
-from pathlib import Path
 import logging
+from pathlib import Path
 
 BENCH_DBS = [
     "tpcc",
@@ -14,7 +14,6 @@ BENCH_DBS = [
     "seats",
     "resourcestresser",
     "noop",
-    "hyadapt",
     "epinions",
     "chbenchmark",
     "auctionmark",
@@ -49,6 +48,75 @@ BENCH_TABLES = {
         "partsupp",
         "lineitem",
     ],
+    "wikipedia": [
+        "useracct",
+        "watchlist",
+        "ipblocks" "logging",
+        "user_groups",
+        "recentchanges",
+        "page",
+        "revision",
+        "page_restrictions",
+        "text",
+    ],
+    "voter": [
+        "contestants",
+        "votes",
+        "v_votes_by_contestant_number_state",
+        "area_code_state",
+        "v_votes_by_phone_number",
+    ],
+    "twitter": ["user_profiles", "tweets", "follows", "added_tweets", "followers"],
+    "smallbank": ["accounts", "checking", "savings"],
+    "sibench": ["sitest"],
+    "seats": [
+        "country",
+        "airline",
+        "airport",
+        "customer",
+        "flight",
+        "airport_distance",
+        "frequent_flyer",
+        "reservation",
+        "config_profile",
+        "config_histograms",
+    ],
+    "resourcestresser": ["iotable", "cputable", "iotablesmallrow", "locktable"],
+    "noop": ["fake"],
+    "epinions": ["item", "review", "useracct", "trust", "review_rating"],
+    "chbenchmark": [
+        "warehouse",
+        "district",
+        "region",
+        "nation",
+        "supplier",
+        "customer",
+        "item",
+        "history",
+        "oorder",
+        "order_line",
+        "new_order",
+    ],
+    "auctionmark": [
+        "region",
+        "useracct",
+        "category",
+        "config_profile",
+        "global_attribute_group",
+        "item",
+        "item_comment",
+        "useracct_feedback",
+        "useracct_attributes",
+        "item_bid",
+        "useracct_watch",
+        "global_attribute_value",
+        "item_attribute",
+        "item_image",
+        "item_max_bid",
+        "item_purchase",
+        "useracct_item",
+    ],
+    "ycsb": ["usertable"],
 }
 
 
@@ -129,4 +197,3 @@ EVAL_DATA_ROOT = DATA_ROOT / "eval"
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
-import psutil
+import argparse
 import shutil
 from pathlib import Path
-import argparse
+
+import psutil
+
 
 def kill_tscout_and_postgres():
     print("Shutting down TScout and Postgres")
@@ -17,12 +19,7 @@ def kill_tscout_and_postgres():
                     proc.kill()
                 except (psutil.NoSuchProcess, psutil.ZombieProcess):
                     pass
-            elif any(
-                [
-                    tscout_process_name in proc.info["name"]
-                    for tscout_process_name in tscout_process_names
-                ]
-            ):
+            elif any([tscout_process_name in proc.info["name"] for tscout_process_name in tscout_process_names]):
                 try:
                     proc.kill()
                 except (psutil.NoSuchProcess, psutil.ZombieProcess):
@@ -34,7 +31,7 @@ def kill_tscout_and_postgres():
 
 def chown_results(username):
     # change the tscout results ownership to the user who ran the benchmark
-    results_dir = f"/home/{username}/postgres/cmudb/tscout/results/"
+    results_dir = f"/home/{username}/postgres/cmudb/behavior_modeling/training_data/"
     print(f"Changing ownership of TScout results from root to user: {username}")
     shutil.chown(results_dir, user=username)
     for file in Path(results_dir).glob("**/*"):

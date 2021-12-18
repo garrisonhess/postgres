@@ -1,21 +1,23 @@
-#/usr/bin/env python3
+# /usr/bin/env python3
+
+import pickle
 
 import numpy as np
 from lightgbm import LGBMRegressor
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.neural_network import MLPRegressor
-from sklearn.multioutput import MultiOutputRegressor
 from sklearn.linear_model import (
-    LinearRegression,
-    HuberRegressor,
-    MultiTaskLasso,
-    Lasso,
     ElasticNet,
+    HuberRegressor,
+    Lasso,
+    LinearRegression,
     MultiTaskElasticNet,
+    MultiTaskLasso,
 )
+from sklearn.multioutput import MultiOutputRegressor
+from sklearn.neural_network import MLPRegressor
+from sklearn.preprocessing import RobustScaler, StandardScaler
 from sklearn.tree import DecisionTreeRegressor
-from sklearn.preprocessing import StandardScaler, RobustScaler
-import pickle
+
 from config import METHODS, MODEL_DIR
 
 
@@ -62,9 +64,7 @@ def get_model(method, config):
         regressor = DecisionTreeRegressor(max_depth=config["dt"]["max_depth"])
         regressor = MultiOutputRegressor(regressor)
     if method == "elastic":
-        regressor = ElasticNet(
-            alpha=config["elastic"]["alpha"], l1_ratio=config["elastic"]["l1_ratio"]
-        )
+        regressor = ElasticNet(alpha=config["elastic"]["alpha"], l1_ratio=config["elastic"]["l1_ratio"])
         regressor = MultiOutputRegressor(regressor)
     if method == "mt_elastic":
         regressor = MultiTaskElasticNet(l1_ratio=config["mt_elastic"]["l1_ratio"])

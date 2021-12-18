@@ -3,10 +3,11 @@ numpy
 psutil
 pyyaml
 setuptools
-shutil
 pandas
 sklearn
-itertools
 pydotplus
 lightgbm
+isort
+black
+flake8
 dataclasses; python_version<"3.7"

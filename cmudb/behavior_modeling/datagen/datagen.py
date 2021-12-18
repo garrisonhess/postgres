@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 
-from subprocess import Popen
-import time
-import os
 import argparse
-from pathlib import Path
+import logging
+import os
 import shutil
+import time
 from datetime import datetime
+from pathlib import Path
+from subprocess import Popen
+
 import psutil
 import yaml
-import logging
 
 BENCH_DBS = [
     "tpcc",
@@ -107,8 +108,8 @@ def check_orphans():
         if any([tscout_process_name in proc.info["name"] for tscout_process_name in tscout_process_names]):
             tscout_procs.append(proc)
 
-    assert (len(pg_procs) == 0), f"Found active postgres processes from previous runs: {pg_procs}"
-    assert (len(tscout_procs) == 0), f"Found active tscout processes from previous runs: {tscout_procs}"
+    assert len(pg_procs) == 0, f"Found active postgres processes from previous runs: {pg_procs}"
+    assert len(tscout_procs) == 0, f"Found active tscout processes from previous runs: {tscout_procs}"
 
 
 def init_pg(results_dir):
@@ -142,15 +143,11 @@ def init_pg(results_dir):
 
         # Turn on QueryID computation
         Popen(
-            args=[
-                '''./build/bin/psql -d test -c "ALTER DATABASE test SET compute_query_id = 'ON';"'''
-            ],
+            args=['''./build/bin/psql -d test -c "ALTER DATABASE test SET compute_query_id = 'ON';"'''],
             shell=True,
         ).wait()
         Popen(
-            args=[
-                '''./build/bin/psql -d benchbase -c "ALTER DATABASE benchbase SET compute_query_id = 'ON';"'''
-            ],
+            args=['''./build/bin/psql -d benchbase -c "ALTER DATABASE benchbase SET compute_query_id = 'ON';"'''],
             shell=True,
         ).wait()
 
@@ -199,9 +196,7 @@ def pg_prewarm(bench_db):
         for table in BENCH_TABLES[bench_db]:
             logger.info(f"Prewarming table: {table}")
             Popen(
-                args=[
-                    f"""./build/bin/psql -d benchbase -c "select * from pg_prewarm('{table}')";"""
-                ],
+                args=[f"""./build/bin/psql -d benchbase -c "select * from pg_prewarm('{table}')";"""],
                 shell=True,
             ).wait()
     except Exception as err:
@@ -296,9 +291,7 @@ def cleanup(err, terminate, message=""):
         logger.error(f"Error: {err}")
 
     username = psutil.Process().username()
-    Popen(
-        args=[f"sudo python3 {cleanup_script_path} --username {username}"], shell=True
-    ).wait()
+    Popen(args=[f"sudo python3 {cleanup_script_path} --username {username}"], shell=True).wait()
     time.sleep(2)  # Allow TScout poison pills to propagate
 
     # Exit the program if the caller requested it (only happens on error)
@@ -341,7 +334,7 @@ def run(bench_db, results_dir):
     """Run an experiment"""
     assert results_dir.exists(), f"Results directory does not exist: {results_dir}"
     logger.info(f"Running experiment: {experiment_name} with bench_db: {bench_db} and results_dir: {results_dir}")
-    
+
     check_orphans()
 
     pg_log_file = init_pg(results_dir)

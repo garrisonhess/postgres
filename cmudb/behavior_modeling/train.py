@@ -1,26 +1,34 @@
 #!/usr/bin/env python3
 
 import argparse
-from datetime import datetime
+import itertools
 import os
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
-import yaml
-from model import BehaviorModel
-from config import OU_NAMES, BENCH_DBS, TARGET_COLS, MODEL_CONFIG_DIR, TRAIN_DATA_ROOT, logger, EVAL_DATA_ROOT, MODEL_DIR
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn import tree
-import itertools
 import pydotplus
+import yaml
+from sklearn import tree
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+from config import (
+    BENCH_DBS,
+    EVAL_DATA_ROOT,
+    MODEL_CONFIG_DIR,
+    MODEL_DIR,
+    OU_NAMES,
+    TARGET_COLS,
+    TRAIN_DATA_ROOT,
+    logger,
+)
+from model import BehaviorModel
 
 
-
-
-
-def evaluate(ou_model, X, y, output_dir, dataset, mode): 
+def evaluate(ou_model, X, y, output_dir, dataset, mode):
     if mode != "train" and mode != "eval":
         raise ValueError(f"Invalid mode: {mode}")
-    
+
     y_pred = ou_model.predict(X)
 
     # pair and reorder the target columns for readable outputs
@@ -33,13 +41,11 @@ def evaluate(ou_model, X, y, output_dir, dataset, mode):
         test_result_df = pd.DataFrame(temp, columns=feat_cols + target_cols + [f"pred_{col}" for col in target_cols])
         test_result_df[reordered_cols].to_csv(preds_file, float_format="%.1f", index=False)
 
-
     if ou_model.method == "dt":
         for idx, target_name in enumerate(target_cols):
             dot = tree.export_graphviz(ou_model._base_model.estimators_[idx], feature_names=feat_cols, filled=True)
             dt_file = f"{output_dir}/{ou_name}_treeplot_{target_name}.png"
             pydotplus.graphviz.graph_from_dot_data(dot).write_png(dt_file)
-
 
     ou_eval_path = output_dir / f"{ou_model.ou_name}_{ou_model.method}_{dataset}_{mode}_summary.txt"
     with open(ou_eval_path, "w+") as eval_file:
@@ -66,11 +72,7 @@ def load_data(data_dir):
     ou_name_to_df = dict()
 
     for ou_name in OU_NAMES:
-        ou_results = [
-            fp
-            for fp in result_paths
-            if fp.name == f"{ou_name}.csv" and os.stat(fp).st_size > 0
-        ]
+        ou_results = [fp for fp in result_paths if fp.name == f"{ou_name}.csv" and os.stat(fp).st_size > 0]
         if len(ou_results) > 0:
             logger.info(f"Found {len(ou_results)} run(s) for {ou_name}")
             ou_name_to_df[ou_name] = pd.concat(map(pd.read_csv, ou_results))
@@ -91,9 +93,7 @@ def prep_train_data(df):
 
     if len(cols_to_remove) > 0:
         logger.info(f"Dropped zero-variance columns: {cols_to_remove}")
-        logger.info(
-            f"Num Remaining: {len(df.columns)}, Num Removed {len(cols_to_remove)}"
-        )
+        logger.info(f"Num Remaining: {len(df.columns)}, Num Removed {len(cols_to_remove)}")
 
     feat_cols = [col for col in df.columns if col not in TARGET_COLS]
     target_cols = [col for col in df.columns if col in TARGET_COLS]
@@ -104,7 +104,7 @@ def prep_train_data(df):
     return feat_cols, target_cols, X, y
 
 
-def prep_eval_data(df, feat_cols, target_cols): 
+def prep_eval_data(df, feat_cols, target_cols):
     X = df[feat_cols].values
     y = df[target_cols].values
 
@@ -125,12 +125,12 @@ if __name__ == "__main__":
         config = yaml.load(f, Loader=yaml.FullLoader)
 
     training_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    train_bench_dbs = config['train_bench_dbs']
+    train_bench_dbs = config["train_bench_dbs"]
     train_bench_db = train_bench_dbs[0]
-    eval_bench_dbs = config['eval_bench_dbs']
+    eval_bench_dbs = config["eval_bench_dbs"]
     eval_bench_db = eval_bench_dbs[0]
 
-    for train_bench_db in train_bench_dbs: 
+    for train_bench_db in train_bench_dbs:
         if train_bench_db not in BENCH_DBS:
             raise ValueError(f"Benchmark DB {config['bench_db']} not supported")
 
@@ -146,9 +146,9 @@ if __name__ == "__main__":
     eval_data_dir = EVAL_DATA_ROOT / experiment_name / eval_bench_db
     logger.warning(f"eval data dir: {eval_data_dir}")
     if not training_data_dir.exists():
-            raise ValueError(f"Train Benchmark DB {train_bench_db} not found in experiment: {experiment_name}")
+        raise ValueError(f"Train Benchmark DB {train_bench_db} not found in experiment: {experiment_name}")
     if not eval_data_dir.exists():
-            raise ValueError(f"Eval Benchmark DB {eval_bench_db} not found in experiment: {experiment_name}")
+        raise ValueError(f"Eval Benchmark DB {eval_bench_db} not found in experiment: {experiment_name}")
 
     train_ou_to_df = load_data(training_data_dir)
     eval_ou_to_df = load_data(eval_data_dir)
@@ -178,6 +178,3 @@ if __name__ == "__main__":
             except Exception as e:
                 logger.warning(f"Exception encountered during training OU {ou_name}: {e}")
                 continue
-
-
-
