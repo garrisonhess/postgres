@@ -120,7 +120,7 @@ METHODS = [
     "elastic",
 ]
 
-DATA_ROOT = Path.home() / "postgres/cmudb/behavior_modeling/data"
+DATA_ROOT = Path.home() / "postgres/cmudb/behavior_modeling/training_data"
 MODELING_DIR = Path.home() / "postgres/cmudb/behavior_modeling"
 MODEL_CONFIG_DIR = MODELING_DIR / "config"
 MODEL_DIR = MODELING_DIR / "models"
