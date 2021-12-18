@@ -1,0 +1,12 @@
+# Python dependencies required for development
+numpy
+psutil
+pyyaml
+setuptools
+shutil
+pandas
+sklearn
+itertools
+pydotplus
+lightgbm
+dataclasses; python_version<"3.7"

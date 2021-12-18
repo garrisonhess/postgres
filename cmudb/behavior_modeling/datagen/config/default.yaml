@@ -1,7 +1,6 @@
 build_pg: False
 build_bbase: False
-num_runs: 1
 prewarm: True
-log_level: INFO
 bench_dbs: [tpcc, tatp]
-sqlsmith: False
+sqlsmith: False # currently ignored because dataset naming gets weird
+log_level: INFO

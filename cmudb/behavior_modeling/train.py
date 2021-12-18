@@ -14,11 +14,7 @@ import itertools
 import pydotplus
 
 
-# if method == "dt":
-#     for idx, target_name in enumerate(target_cols):
-#         dot = tree.export_graphviz(ou_model._base_model.estimators_[idx], feature_names=feat_cols, filled=True)
-#         dt_file = f"{ou_eval_dir}/{ou_name}_treeplot_{target_name}.png"
-#         pydotplus.graphviz.graph_from_dot_data(dot).write_png(dt_file)
+
 
 
 def evaluate(ou_model, X, y, output_dir, dataset, mode): 
@@ -32,10 +28,18 @@ def evaluate(ou_model, X, y, output_dir, dataset, mode):
     reordered_cols = feat_cols + list(itertools.chain.from_iterable(paired_cols))
 
     preds_path = output_dir / f"{ou_model.ou_name}_{ou_model.method}_{dataset}_{mode}_preds.csv"
-    with open(preds_path, "w+") as test_preds_file:
+    with open(preds_path, "w+") as preds_file:
         temp = np.concatenate((X, y, y_pred), axis=1)
         test_result_df = pd.DataFrame(temp, columns=feat_cols + target_cols + [f"pred_{col}" for col in target_cols])
-        test_result_df[reordered_cols].to_csv(test_preds_file, float_format="%.1f", index=False)
+        test_result_df[reordered_cols].to_csv(preds_file, float_format="%.1f", index=False)
+
+
+    if ou_model.method == "dt":
+        for idx, target_name in enumerate(target_cols):
+            dot = tree.export_graphviz(ou_model._base_model.estimators_[idx], feature_names=feat_cols, filled=True)
+            dt_file = f"{output_dir}/{ou_name}_treeplot_{target_name}.png"
+            pydotplus.graphviz.graph_from_dot_data(dot).write_png(dt_file)
+
 
     ou_eval_path = output_dir / f"{ou_model.ou_name}_{ou_model.method}_{dataset}_{mode}_summary.txt"
     with open(ou_eval_path, "w+") as eval_file:

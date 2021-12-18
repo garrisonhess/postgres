@@ -16,7 +16,6 @@ from sklearn.linear_model import (
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.preprocessing import StandardScaler, RobustScaler
 import pickle
-from pathlib import Path
 from config import METHODS, MODEL_DIR
 
 

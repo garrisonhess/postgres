@@ -73,7 +73,7 @@ benchbase_snapshot_path = benchbase_dir / "target" / "benchbase-2021-SNAPSHOT.zi
 datagen_dir = cmudb_dir / "behavior_modeling/datagen"
 cleanup_script_path = datagen_dir / "cleanup.py"
 sqlsmith_dir = Path.home() / "sqlsmith"
-out_data_root = cmudb_dir / "behavior_modeling/data/"
+out_data_root = cmudb_dir / "behavior_modeling/training_data/"
 
 
 def build_postgres():
