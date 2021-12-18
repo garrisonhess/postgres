@@ -1,1 +1,1 @@
-Exploratory data analysis scripts go here
+Ad-hoc exploratory data analysis scripts
