@@ -1,7 +1,8 @@
 # Training/Evaluation Configuration
 train_bench_dbs: [tpcc]
-eval_bench_dbs: [tpcc]
+eval_bench_dbs: [tpcc, tatp, ycsb, wikipedia, voter, twitter, smallbank, auctionmark]
 experiment_name: null
+differencing: False
 methods: [rf]
 normalize: True
 log_transform: False

@@ -1,6 +1,7 @@
 build_pg: False
 build_bbase: False
-prewarm: True
-bench_dbs: [tpcc, tatp, ycsb, wikipedia, voter, twitter, smallbank, auctionmark]
+prewarm: False
+bench_dbs: [tpcc]
+# bench_dbs: [tpcc, tatp, ycsb, wikipedia, voter, twitter, smallbank, auctionmark]
 sqlsmith: False # currently ignored because dataset naming gets weird
 log_level: INFO

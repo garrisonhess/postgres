@@ -10,7 +10,7 @@ import pandas as pd
 import pydotplus
 import yaml
 from sklearn import tree
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, mean_absolute_percentage_error
 
 from config import (
     BENCH_DBS,
@@ -29,6 +29,11 @@ def evaluate(ou_model, X, y, output_dir, dataset, mode):
     if mode != "train" and mode != "eval":
         raise ValueError(f"Invalid mode: {mode}")
 
+    if mode == "train":
+        mode = "Training"
+    else:
+        mode = "Evaluation"
+    
     y_pred = ou_model.predict(X)
 
     # pair and reorder the target columns for readable outputs
@@ -44,12 +49,12 @@ def evaluate(ou_model, X, y, output_dir, dataset, mode):
     if ou_model.method == "dt":
         for idx, target_name in enumerate(target_cols):
             dot = tree.export_graphviz(ou_model._base_model.estimators_[idx], feature_names=feat_cols, filled=True)
-            dt_file = f"{output_dir}/{ou_name}_treeplot_{target_name}.png"
+            dt_file = f"{output_dir}/{ou_name}_{mode}_treeplot_{target_name}.png"
             pydotplus.graphviz.graph_from_dot_data(dot).write_png(dt_file)
 
     ou_eval_path = output_dir / f"{ou_model.ou_name}_{ou_model.method}_{dataset}_{mode}_summary.txt"
     with open(ou_eval_path, "w+") as eval_file:
-        eval_file.write(f"\n============= Model Summary for {ou_name} Model: {method} =============\n")
+        eval_file.write(f"\n============= {mode}: Model Summary for {ou_name} Model: {method} =============\n")
         eval_file.write(f"Features used: {feat_cols}\n")
         eval_file.write(f"Num Features used: {len(feat_cols)}\n")
         eval_file.write(f"Targets estimated: {target_cols}\n")
@@ -60,19 +65,26 @@ def evaluate(ou_model, X, y, output_dir, dataset, mode):
             target_true = y[:, target_idx]
             mse = mean_squared_error(target_true, target_pred)
             mae = mean_absolute_error(target_true, target_pred)
+            mape = mean_absolute_percentage_error(target_true, target_pred)
             r2 = r2_score(target_true, target_pred)
-            eval_file.write(f"Train MSE: {round(mse, 2)}\n")
-            eval_file.write(f"Train MAE: {round(mae, 2)}\n")
-            eval_file.write(f"Train R^2: {round(r2, 2)}\n")
+            eval_file.write(f"Mean Absolute Percentage Error (MAPE): {round(mape, 2)}\n")
+            eval_file.write(f"Mean Squared Error (MSE): {round(mse, 2)}\n")
+            eval_file.write(f"Mean Absolute Error (MAE): {round(mae, 2)}\n")
+            eval_file.write(f"Percentage Explained Variation (R-squared): {round(r2, 2)}\n")
         eval_file.write("======================== END SUMMARY ========================\n")
 
 
-def load_data(data_dir):
-    result_paths = [fp for fp in data_dir.glob("**/*.csv")]
-    ou_name_to_df = dict()
+def load_data(data_dir, differencing):
 
+    if differencing: 
+        result_paths = [fp for fp in data_dir.glob("*.csv") if "diffed" in fp.name and os.stat(fp).st_size > 0]
+    else: 
+        result_paths = [fp for fp in data_dir.glob("*.csv") if "diffed" not in fp.name and os.stat(fp).st_size > 0]
+
+    ou_name_to_df = dict()
+    
     for ou_name in OU_NAMES:
-        ou_results = [fp for fp in result_paths if fp.name == f"{ou_name}.csv" and os.stat(fp).st_size > 0]
+        ou_results = [fp for fp in result_paths if fp.name.startswith(ou_name)]
         if len(ou_results) > 0:
             logger.info(f"Found {len(ou_results)} run(s) for {ou_name}")
             ou_name_to_df[ou_name] = pd.concat(map(pd.read_csv, ou_results))
@@ -84,13 +96,15 @@ def load_data(data_dir):
 
 
 def prep_train_data(df):
-    cols_to_remove = ["start_time", "end_time", "cpu_id", "query_id"]
+    cols_to_remove = ["start_time", "end_time", "cpu_id", "query_id", "rid", "plan_node_id"]
+    cols_to_remove = [x for x in cols_to_remove if x in df.columns]
     for col in df.columns:
         if df[col].nunique() == 1:
             cols_to_remove.append(col)
 
     df = df.drop(cols_to_remove, axis=1)
-
+    df = df.sort_index(axis=1)
+    
     if len(cols_to_remove) > 0:
         logger.info(f"Dropped zero-variance columns: {cols_to_remove}")
         logger.info(f"Num Remaining: {len(df.columns)}, Num Removed {len(cols_to_remove)}")
@@ -129,6 +143,7 @@ if __name__ == "__main__":
     train_bench_db = train_bench_dbs[0]
     eval_bench_dbs = config["eval_bench_dbs"]
     eval_bench_db = eval_bench_dbs[0]
+    differencing = config["differencing"]
 
     for train_bench_db in train_bench_dbs:
         if train_bench_db not in BENCH_DBS:
@@ -150,8 +165,8 @@ if __name__ == "__main__":
     if not eval_data_dir.exists():
         raise ValueError(f"Eval Benchmark DB {eval_bench_db} not found in experiment: {experiment_name}")
 
-    train_ou_to_df = load_data(training_data_dir)
-    eval_ou_to_df = load_data(eval_data_dir)
+    train_ou_to_df = load_data(training_data_dir, differencing)
+    eval_ou_to_df = load_data(eval_data_dir, differencing)
     output_dir = MODEL_DIR / training_timestamp
 
     for ou_name in train_ou_to_df.keys():
