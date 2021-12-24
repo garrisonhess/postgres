@@ -23,11 +23,12 @@ benchbase_dir = Path.home() / "benchbase"
 benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
 benchbase_snapshot_path = benchbase_dir / "target" / "benchbase-2021-SNAPSHOT.zip"
 behavior_modeling_dir = cmudb_dir / "behavior_modeling"
+pg_conf_path = behavior_modeling_dir / "config/datagen/postgres/postgresql.conf"
 cleanup_script_path = behavior_modeling_dir / "cleanup.py"
 sqlsmith_dir = Path.home() / "sqlsmith"
 
 
-def build_postgres():
+def build_pg():
     """Build Postgres (and extensions)"""
 
     try:
@@ -62,25 +63,22 @@ def check_orphans():
     assert len(tscout_procs) == 0, f"Found active tscout processes from previous runs: {tscout_procs}"
 
 
-def init_pg(results_dir):
+def init_pg():
     try:
         os.chdir(pg_dir)
-        pg_log_file = open(results_dir / "pg_log.txt", "w")
 
         # initialize postgres for benchbase execution
         shutil.rmtree("data")
+
         Path("data").mkdir(parents=True, exist_ok=True)
-        Popen(args=["./build/bin/initdb -D data"], shell=True).wait()
+        Popen(args=["./build/bin/pg_ctl initdb -D data"], shell=True).wait()
+        shutil.copy(str(pg_conf_path), "./data/postgresql.conf")
 
         Popen(
-            args=["./build/bin/postgres -D data -W 2 &"],
+            args=[f'''./build/bin/pg_ctl -D data -o "-W 2" start'''],
             shell=True,
-            stdout=pg_log_file,
-            stderr=pg_log_file,
-        )
-        time.sleep(2)  # allows for Postgres to start up before the createdb call
+        ).wait()
 
-        # TODO: change psql commands to use psycopg2
         # Initialize the DB and create an admin user for Benchbase to use
         Popen(args=["./build/bin/createdb test"], shell=True).wait()
         Popen(
@@ -101,6 +99,9 @@ def init_pg(results_dir):
             shell=True,
         ).wait()
 
+        Popen(args=['''./build/bin/psql -d 'benchbase' -c "CREATE EXTENSION pg_stat_statements;"'''], shell=True).wait()
+        Popen(args=['''./build/bin/psql -d 'benchbase' -c "CREATE EXTENSION pg_store_plans;"'''], shell=True).wait()
+
         # Turn off pager
         Popen(
             args=['''./build/bin/psql -d benchbase -P pager=off -c "SELECT 1;"'''],
@@ -110,7 +111,6 @@ def init_pg(results_dir):
     except Exception as err:
         cleanup(err, terminate=True, message="Error initializing Postgres")
 
-    return pg_log_file
 
 
 def pg_analyze(bench_db):
@@ -209,19 +209,31 @@ def init_benchbase(bench_db):
         cleanup(err, terminate=True, message="Error initializing Benchbase")
 
 
+
 def exec_benchbase(bench_db):
+    psql_path = pg_dir / "./build/bin/psql"
+
     try:
         os.chdir(benchbase_dir)
         if not os.path.exists(benchbase_snapshot_dir):
             build_benchbase(benchbase_dir)
         os.chdir(benchbase_snapshot_dir)
 
+        Popen(args=[f'''{psql_path} -d 'benchbase' -c "SELECT pg_stat_statements_reset();"'''], shell=True).wait()
+        Popen(args=[f'''{psql_path} -d 'benchbase' -c "SELECT pg_store_plans_reset();"'''], shell=True).wait()
+        
         # run benchbase
         benchbase_cmd = f"java -jar benchbase.jar -b {bench_db} -c config/postgres/{bench_db}_config.xml --create=false --load=false --execute=true"
         bbase_proc = Popen(args=[benchbase_cmd], shell=True)
         bbase_proc.wait()
         if bbase_proc.returncode != 0:
             raise RuntimeError(f"Benchbase failed with return code: {bbase_proc.returncode}")
+        
+        with open(results_dir / "stat_file.csv", "w") as stat_file:
+            Popen(args=[f'''{psql_path} -d 'benchbase' --csv -c "SELECT * FROM pg_stat_statements;"'''], shell=True, stdout=stat_file, stderr=stat_file).wait()
+
+        with open(results_dir / "plan_file.csv", "w") as stat_file:
+            Popen(args=[f'''{psql_path} -d 'benchbase' --csv -c "SELECT * FROM pg_store_plans;"'''], shell=True, stdout=stat_file, stderr=stat_file).wait()
 
         # Move benchbase results to experiment results directory
         shutil.move(str(benchbase_snapshot_dir / "results"), str(benchbase_results_dir))
@@ -287,9 +299,19 @@ def run(bench_db, results_dir):
 
     check_orphans()
 
-    pg_log_file = init_pg(results_dir)
+    init_pg()
     init_benchbase(bench_db)
 
+    # reload config to make a new logfile
+    os.chdir(pg_dir)
+    Popen(args=["./build/bin/pg_ctl -D data stop"], shell=True).wait()
+
+    # remove pre-existing logs
+    for log_path in [fp for fp in (pg_dir / "data/log").glob("*") if fp.suffix in ["csv", "log"]]:
+        log_path.unlink()
+    
+    Popen(args=['''./build/bin/pg_ctl -D data -o "-W 2" start'''], shell=True).wait()
+    
     if config["prewarm"]:
         pg_analyze(bench_db)
         pg_prewarm(bench_db)
@@ -297,7 +319,13 @@ def run(bench_db, results_dir):
     tscout_proc = init_tscout(results_dir)
     exec_benchbase(bench_db)
 
-    pg_log_file.close()
+    log_fps = list((pg_dir / "data/log").glob("*.log"))
+    assert len(log_fps) == 1, f"Expected 1 log file, found {len(log_fps)}"
+    shutil.move(str(log_fps[0]), str(results_dir))
+    log_fps = list(results_dir.glob("*.log"))
+    assert len(log_fps) == 1, f"Expected 1 log file, found {len(log_fps)}"
+    log_fps[0].rename(results_dir / "pg_log.log")
+    
     cleanup(err=None, terminate=False, message=f"Finished run")
     tscout_proc.wait()
 
@@ -320,13 +348,14 @@ if __name__ == "__main__":
             raise ValueError(f"Invalid benchmark database: {bench_db}")
 
     if config["build_pg"]:
-        build_postgres(pg_dir)
+        build_pg()
 
     if config["build_bbase"]:
         build_benchbase(benchbase_dir)
 
     # Setup experiment directory
     experiment_name = f"experiment-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+
 
     for mode in ["train", "eval"]:
         mode_dir = DATA_ROOT / mode / experiment_name
@@ -337,3 +366,5 @@ if __name__ == "__main__":
             benchbase_results_dir = results_dir / "benchbase"
             Path(benchbase_results_dir).mkdir(exist_ok=True)
             run(bench_db, results_dir)
+
+
