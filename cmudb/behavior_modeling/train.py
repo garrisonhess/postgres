@@ -33,7 +33,7 @@ def evaluate(ou_model, X, y, output_dir, dataset, mode):
         mode = "Training"
     else:
         mode = "Evaluation"
-    
+
     y_pred = ou_model.predict(X)
 
     # pair and reorder the target columns for readable outputs
@@ -76,13 +76,13 @@ def evaluate(ou_model, X, y, output_dir, dataset, mode):
 
 def load_data(data_dir, differencing):
 
-    if differencing: 
+    if differencing:
         result_paths = [fp for fp in data_dir.glob("*.csv") if "diffed" in fp.name and os.stat(fp).st_size > 0]
-    else: 
+    else:
         result_paths = [fp for fp in data_dir.glob("*.csv") if "diffed" not in fp.name and os.stat(fp).st_size > 0]
 
     ou_name_to_df = dict()
-    
+
     for ou_name in OU_NAMES:
         ou_results = [fp for fp in result_paths if fp.name.startswith(ou_name)]
         if len(ou_results) > 0:
@@ -104,7 +104,7 @@ def prep_train_data(df):
 
     df = df.drop(cols_to_remove, axis=1)
     df = df.sort_index(axis=1)
-    
+
     if len(cols_to_remove) > 0:
         logger.info(f"Dropped zero-variance columns: {cols_to_remove}")
         logger.info(f"Num Remaining: {len(df.columns)}, Num Removed {len(cols_to_remove)}")

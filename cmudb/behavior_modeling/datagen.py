@@ -75,7 +75,7 @@ def init_pg():
         shutil.copy(str(pg_conf_path), "./data/postgresql.conf")
 
         Popen(
-            args=[f'''./build/bin/pg_ctl -D data -o "-W 2" start'''],
+            args=[f"""./build/bin/pg_ctl -D data -o "-W 2" start"""],
             shell=True,
         ).wait()
 
@@ -110,7 +110,6 @@ def init_pg():
 
     except Exception as err:
         cleanup(err, terminate=True, message="Error initializing Postgres")
-
 
 
 def pg_analyze(bench_db):
@@ -209,7 +208,6 @@ def init_benchbase(bench_db):
         cleanup(err, terminate=True, message="Error initializing Benchbase")
 
 
-
 def exec_benchbase(bench_db):
     psql_path = pg_dir / "./build/bin/psql"
 
@@ -221,19 +219,29 @@ def exec_benchbase(bench_db):
 
         Popen(args=[f'''{psql_path} -d 'benchbase' -c "SELECT pg_stat_statements_reset();"'''], shell=True).wait()
         Popen(args=[f'''{psql_path} -d 'benchbase' -c "SELECT pg_store_plans_reset();"'''], shell=True).wait()
-        
+
         # run benchbase
         benchbase_cmd = f"java -jar benchbase.jar -b {bench_db} -c config/postgres/{bench_db}_config.xml --create=false --load=false --execute=true"
         bbase_proc = Popen(args=[benchbase_cmd], shell=True)
         bbase_proc.wait()
         if bbase_proc.returncode != 0:
             raise RuntimeError(f"Benchbase failed with return code: {bbase_proc.returncode}")
-        
+
         with open(results_dir / "stat_file.csv", "w") as stat_file:
-            Popen(args=[f'''{psql_path} -d 'benchbase' --csv -c "SELECT * FROM pg_stat_statements;"'''], shell=True, stdout=stat_file, stderr=stat_file).wait()
+            Popen(
+                args=[f'''{psql_path} -d 'benchbase' --csv -c "SELECT * FROM pg_stat_statements;"'''],
+                shell=True,
+                stdout=stat_file,
+                stderr=stat_file,
+            ).wait()
 
         with open(results_dir / "plan_file.csv", "w") as stat_file:
-            Popen(args=[f'''{psql_path} -d 'benchbase' --csv -c "SELECT * FROM pg_store_plans;"'''], shell=True, stdout=stat_file, stderr=stat_file).wait()
+            Popen(
+                args=[f'''{psql_path} -d 'benchbase' --csv -c "SELECT * FROM pg_store_plans;"'''],
+                shell=True,
+                stdout=stat_file,
+                stderr=stat_file,
+            ).wait()
 
         # Move benchbase results to experiment results directory
         shutil.move(str(benchbase_snapshot_dir / "results"), str(benchbase_results_dir))
@@ -309,9 +317,9 @@ def run(bench_db, results_dir):
     # remove pre-existing logs
     for log_path in [fp for fp in (pg_dir / "data/log").glob("*") if fp.suffix in ["csv", "log"]]:
         log_path.unlink()
-    
-    Popen(args=['''./build/bin/pg_ctl -D data -o "-W 2" start'''], shell=True).wait()
-    
+
+    Popen(args=["""./build/bin/pg_ctl -D data -o "-W 2" start"""], shell=True).wait()
+
     if config["prewarm"]:
         pg_analyze(bench_db)
         pg_prewarm(bench_db)
@@ -325,7 +333,7 @@ def run(bench_db, results_dir):
     log_fps = list(results_dir.glob("*.log"))
     assert len(log_fps) == 1, f"Expected 1 log file, found {len(log_fps)}"
     log_fps[0].rename(results_dir / "pg_log.log")
-    
+
     cleanup(err=None, terminate=False, message=f"Finished run")
     tscout_proc.wait()
 
@@ -356,7 +364,6 @@ if __name__ == "__main__":
     # Setup experiment directory
     experiment_name = f"experiment-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
 
-
     for mode in ["train", "eval"]:
         mode_dir = DATA_ROOT / mode / experiment_name
 
@@ -366,5 +373,3 @@ if __name__ == "__main__":
             benchbase_results_dir = results_dir / "benchbase"
             Path(benchbase_results_dir).mkdir(exist_ok=True)
             run(bench_db, results_dir)
-
-
