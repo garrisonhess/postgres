@@ -82,8 +82,7 @@ assert len(experiment_list) > 0, f"No experiments found"
 experiment = experiment_list[-1]
 print(f"Experiment name was not provided, using experiment: {experiment}")
 
-# for mode in ["train", "eval"]:
-for mode in ["train"]:
+for mode in ["train", "eval"]:
     results_path = DATA_ROOT / mode
     data_path = results_path / experiment / "tpcc"
     result_files = [f for f in data_path.glob("*.csv") if f.name.startswith("Exec") and "diffed" not in f.name]
@@ -106,10 +105,13 @@ for mode in ["train"]:
     for i in range(len(dfs)):
         unified_dfs.append(dfs[i][common_schema])
 
+
+    
     unified_df = pd.concat(unified_dfs, axis=0)
     unified_df = unified_df.sort_values(by=["query_id", "start_time", "plan_node_id"], axis=0)
     total_records = len(unified_df.index)
     diffed_records = []
+    unified_df.to_csv("unified_df.csv")
 
     for i in range(total_records):
         curr_record = unified_df.iloc[i].copy()
@@ -117,30 +119,38 @@ for mode in ["train"]:
         curr_end_time = curr_record["end_time"]
         curr_ou_name = curr_record["ou_name"]
 
-        if i % 100 == 0:
-            print(f"curr record: {i} and total_records: {total_records}")
-
         if curr_ou_name in LEAF_NODES:
             continue
 
         if curr_record["plan_node_id"] > 1:
             continue
 
+        if i % 100 == 0:
+            print(f"curr record: {i} ou_name: {curr_ou_name} and total_records: {total_records}")
+
         lookahead = 1
 
         while True:
-            if i + lookahead >= len(df.index):
+            if i + lookahead >= len(unified_df.index):
                 break
 
-            next_record = df.iloc[i + lookahead]
+            next_record = unified_df.iloc[i + lookahead]
+
             if curr_ou_name == "ExecAgg" and lookahead > 1:
                 break
             if next_record["start_time"] > curr_end_time or next_record["query_id"] != curr_query_id:
                 break
 
+            # if i % 100 == 0:
+            #     print(f"before: {curr_record}")
+            
             curr_record[diff_cols] -= next_record[diff_cols]
-            lookahead += 1
 
+            # if i % 100 == 0:
+            #     print(f"after: {curr_record}")
+            
+            lookahead += 1
+        
         diffed_records.append(curr_record)
 
     diffed_cols = pd.DataFrame(diffed_records)
@@ -164,17 +174,22 @@ for mode in ["train"]:
         # find the intersection of RIDs between diffed_cols and each df
         rids_to_update = diffed_df.index.intersection(diffed_cols.index)
 
-        print(rids_to_update)
         for rid in rids_to_update:
-            full_record = diffed_df.loc[rid]
-            print(full_record)
-            diffed_subrecord = diffed_cols.loc[rid][diff_cols]
-            print(diffed_subrecord)
-            full_record[diff_cols] = diffed_subrecord
-            diffed_df.loc[rid] = full_record
+            old_record = diffed_df.loc[rid]
+            new_record = diffed_cols.loc[rid][diff_cols]
 
+            for idx in old_record.index:
+                if idx not in diff_cols:
+                    new_record[idx] = old_record[idx]
+            
+            diffed_df.loc[rid] = new_record
+
+        
+        if "ou_name" in diffed_df.columns:
+            diffed_df = diffed_df.drop(["ou_name"], axis=1)
+        
         ou_to_diffed[ou_name] = diffed_df
 
     for ou_name, diffed_df in ou_to_diffed.items():
         out_path = data_path / f"{ou_name}_diffed.csv"
-        diffed_df.to_csv(str(out_path), index=False)
+        diffed_df.to_csv(str(out_path), index=True)
