@@ -153,7 +153,7 @@ if __name__ == "__main__":
     if config["experiment_name"] is None:
         experiment_list = sorted([exp_path.name for exp_path in TRAIN_DATA_ROOT.glob("*")])
         logger.warning(f"{train_bench_db} experiments: {experiment_list}")
-        assert len(experiment_list) > 0, f"No experiments found"
+        assert len(experiment_list) > 0, "No experiments found"
         experiment_name = experiment_list[-1]
         logger.warning(f"Experiment name was not provided, using experiment: {experiment_name}")
 

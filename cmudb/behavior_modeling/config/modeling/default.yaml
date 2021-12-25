@@ -2,8 +2,8 @@
 train_bench_dbs: [tpcc]
 eval_bench_dbs: [tpcc, tatp, ycsb, wikipedia, voter, twitter, smallbank, auctionmark]
 experiment_name: null
-differencing: False
-methods: [rf]
+differencing: True
+methods: [lr]
 normalize: True
 log_transform: False
 robust: False

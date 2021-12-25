@@ -75,7 +75,7 @@ def init_pg():
         shutil.copy(str(pg_conf_path), "./data/postgresql.conf")
 
         Popen(
-            args=[f"""./build/bin/pg_ctl -D data -o "-W 2" start"""],
+            args=["""./build/bin/pg_ctl -D data -o "-W 2" start"""],
             shell=True,
         ).wait()
 
@@ -334,7 +334,7 @@ def run(bench_db, results_dir):
     assert len(log_fps) == 1, f"Expected 1 log file, found {len(log_fps)}"
     log_fps[0].rename(results_dir / "pg_log.log")
 
-    cleanup(err=None, terminate=False, message=f"Finished run")
+    cleanup(err=None, terminate=False, message="Finished run")
     tscout_proc.wait()
 
 

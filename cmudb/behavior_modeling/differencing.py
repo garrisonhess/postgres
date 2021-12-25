@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import os
-from pathlib import Path
 import uuid
 import pandas as pd
 from config import TRAIN_DATA_ROOT, DATA_ROOT
@@ -78,9 +77,9 @@ diff_cols = [
 
 # get latest experiment
 experiment_list = sorted([exp_path.name for exp_path in TRAIN_DATA_ROOT.glob("*")])
-assert len(experiment_list) > 0, f"No experiments found"
+assert len(experiment_list) > 0, "No experiments found"
 experiment = experiment_list[-1]
-print(f"Experiment name was not provided, using experiment: {experiment}")
+print(f"Differencing latest experiment: {experiment}")
 
 for mode in ["train", "eval"]:
     results_path = DATA_ROOT / mode
@@ -105,8 +104,6 @@ for mode in ["train", "eval"]:
     for i in range(len(dfs)):
         unified_dfs.append(dfs[i][common_schema])
 
-
-    
     unified_df = pd.concat(unified_dfs, axis=0)
     unified_df = unified_df.sort_values(by=["query_id", "start_time", "plan_node_id"], axis=0)
     total_records = len(unified_df.index)
@@ -141,16 +138,9 @@ for mode in ["train", "eval"]:
             if next_record["start_time"] > curr_end_time or next_record["query_id"] != curr_query_id:
                 break
 
-            # if i % 100 == 0:
-            #     print(f"before: {curr_record}")
-            
             curr_record[diff_cols] -= next_record[diff_cols]
-
-            # if i % 100 == 0:
-            #     print(f"after: {curr_record}")
-            
             lookahead += 1
-        
+
         diffed_records.append(curr_record)
 
     diffed_cols = pd.DataFrame(diffed_records)
@@ -181,13 +171,12 @@ for mode in ["train", "eval"]:
             for idx in old_record.index:
                 if idx not in diff_cols:
                     new_record[idx] = old_record[idx]
-            
+
             diffed_df.loc[rid] = new_record
 
-        
         if "ou_name" in diffed_df.columns:
             diffed_df = diffed_df.drop(["ou_name"], axis=1)
-        
+
         ou_to_diffed[ou_name] = diffed_df
 
     for ou_name, diffed_df in ou_to_diffed.items():
