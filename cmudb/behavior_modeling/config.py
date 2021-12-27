@@ -144,20 +144,6 @@ OU_NAMES = [
     "ExecWorkTableScan",
 ]
 
-TARGET_COLS = [
-    "cpu_cycles",
-    "instructions",
-    "cache_references",
-    "cache_misses",
-    "ref_cpu_cycles",
-    "network_bytes_read",
-    "network_bytes_written",
-    "disk_bytes_read",
-    "disk_bytes_written",
-    "memory_bytes",
-    "elapsed_us",
-]
-
 METHODS = [
     "lr",
     "huber",

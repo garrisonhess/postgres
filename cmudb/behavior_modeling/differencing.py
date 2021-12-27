@@ -2,8 +2,9 @@
 
 import os
 import uuid
+
 import pandas as pd
-from config import TRAIN_DATA_ROOT, DATA_ROOT
+from config import DATA_ROOT, TRAIN_DATA_ROOT
 
 LEAF_NODES = {"ExecIndexScan", "ExecSeqScan", "ExecIndexOnlyScan", "ExecResult"}
 remap_schema = [
@@ -147,36 +148,31 @@ for mode in ["train", "eval"]:
     diffed_cols = diffed_cols.set_index("rid")
     diffed_cols.to_csv("diffed_cols.csv")
 
-    # apply differenced df back to each original dataframe in ou_to_dfs
+    # prepare diffed data for integration into undiffed
+    nondiff_cols = [col for col in diffed_cols.columns if col not in diff_cols]
+    diffed_cols = diffed_cols.drop(nondiff_cols, axis=1)
+    mapper = {col: f"diffed_{col}" for col in diffed_cols.columns}
+    diffed_cols = diffed_cols.rename(columns=mapper)
+
+    # add the new columns onto the undiffed data
     ou_to_diffed = {}
 
-    for i in range(len(dfs)):
-        dfs[i] = dfs[i].set_index("rid")
+    for undiffed_df in dfs:
+        undiffed_df = undiffed_df.set_index("rid")
+        undiffed_df.to_csv("undiffed.csv")
+        ou_name = undiffed_df.iloc[0]["ou_name"]
 
-    for raw_df in dfs:
-        raw_df.to_csv("raw_df.csv")
-        diffed_df = raw_df
+        if "ou_name" in undiffed_df.columns:
+            undiffed_df = undiffed_df.drop(["ou_name"], axis=1)
 
-        ou_name = raw_df.iloc[0]["ou_name"]
         if ou_name in LEAF_NODES:
             continue
 
         # find the intersection of RIDs between diffed_cols and each df
-        rids_to_update = diffed_df.index.intersection(diffed_cols.index)
-
-        for rid in rids_to_update:
-            old_record = diffed_df.loc[rid]
-            new_record = diffed_cols.loc[rid][diff_cols]
-
-            for idx in old_record.index:
-                if idx not in diff_cols:
-                    new_record[idx] = old_record[idx]
-
-            diffed_df.loc[rid] = new_record
-
-        if "ou_name" in diffed_df.columns:
-            diffed_df = diffed_df.drop(["ou_name"], axis=1)
-
+        rids_to_update = undiffed_df.index.intersection(diffed_cols.index)
+        assert undiffed_df.index.difference(diffed_cols.index).shape[0] == 0
+        print(f"num records to update: {rids_to_update.shape[0]}")
+        diffed_df = undiffed_df.join(diffed_cols, how="inner")
         ou_to_diffed[ou_name] = diffed_df
 
     for ou_name, diffed_df in ou_to_diffed.items():

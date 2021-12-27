@@ -5,24 +5,43 @@ import itertools
 import os
 from datetime import datetime
 
+import yaml
+
 import numpy as np
 import pandas as pd
 import pydotplus
-import yaml
-from sklearn import tree
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, mean_absolute_percentage_error
-
-from config import (
-    BENCH_DBS,
-    EVAL_DATA_ROOT,
-    MODEL_CONFIG_DIR,
-    MODEL_DIR,
-    OU_NAMES,
-    TARGET_COLS,
-    TRAIN_DATA_ROOT,
-    logger,
-)
+from config import BENCH_DBS, EVAL_DATA_ROOT, MODEL_CONFIG_DIR, MODEL_DIR, OU_NAMES, TRAIN_DATA_ROOT, logger
 from model import BehaviorModel
+from sklearn import tree
+from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, mean_squared_error, r2_score
+
+BASE_TARGET_COLS = [
+    "cpu_cycles",
+    "instructions",
+    "cache_references",
+    "cache_misses",
+    "ref_cpu_cycles",
+    "network_bytes_read",
+    "network_bytes_written",
+    "disk_bytes_read",
+    "disk_bytes_written",
+    "memory_bytes",
+    "elapsed_us",
+]
+
+DIFF_TARGET_COLS = [
+    "diffed_cpu_cycles",
+    "diffed_instructions",
+    "diffed_cache_references",
+    "diffed_cache_misses",
+    "diffed_ref_cpu_cycles",
+    "diffed_network_bytes_read",
+    "diffed_network_bytes_written",
+    "diffed_disk_bytes_read",
+    "diffed_disk_bytes_written",
+    "diffed_memory_bytes",
+    "diffed_elapsed_us",
+]
 
 
 def evaluate(ou_model, X, y, output_dir, dataset, mode):
@@ -74,9 +93,9 @@ def evaluate(ou_model, X, y, output_dir, dataset, mode):
         eval_file.write("======================== END SUMMARY ========================\n")
 
 
-def load_data(data_dir, differencing):
+def load_data(data_dir, diff):
 
-    if differencing:
+    if diff:
         result_paths = [fp for fp in data_dir.glob("*.csv") if "diffed" in fp.name and os.stat(fp).st_size > 0]
     else:
         result_paths = [fp for fp in data_dir.glob("*.csv") if "diffed" not in fp.name and os.stat(fp).st_size > 0]
@@ -95,25 +114,42 @@ def load_data(data_dir, differencing):
     return ou_name_to_df
 
 
-def prep_train_data(df):
+def prep_train_data(df, diff):
+
     cols_to_remove = ["start_time", "end_time", "cpu_id", "query_id", "rid", "plan_node_id"]
+
+    if diff:
+        cols_to_remove += BASE_TARGET_COLS
+    else:
+        cols_to_remove += DIFF_TARGET_COLS
+
     cols_to_remove = [x for x in cols_to_remove if x in df.columns]
+
     for col in df.columns:
         if df[col].nunique() == 1:
             cols_to_remove.append(col)
 
     df = df.drop(cols_to_remove, axis=1)
+
+    print(df.columns)
     df = df.sort_index(axis=1)
 
     if len(cols_to_remove) > 0:
         logger.info(f"Dropped zero-variance columns: {cols_to_remove}")
         logger.info(f"Num Remaining: {len(df.columns)}, Num Removed {len(cols_to_remove)}")
 
-    feat_cols = [col for col in df.columns if col not in TARGET_COLS]
-    target_cols = [col for col in df.columns if col in TARGET_COLS]
+    if diff:
+        feat_cols = [col for col in df.columns if col not in DIFF_TARGET_COLS]
+        target_cols = [col for col in df.columns if col in DIFF_TARGET_COLS]
+    else:
+        feat_cols = [col for col in df.columns if col not in BASE_TARGET_COLS]
+        target_cols = [col for col in df.columns if col in BASE_TARGET_COLS]
 
     X = df[feat_cols].values
     y = df[target_cols].values
+
+    print(X.shape)
+    print(y.shape)
 
     return feat_cols, target_cols, X, y
 
@@ -171,7 +207,7 @@ if __name__ == "__main__":
 
     for ou_name in train_ou_to_df.keys():
         logger.warning(f"Begin Training OU: {ou_name}")
-        feat_cols, target_cols, X_train, y_train = prep_train_data(train_ou_to_df[ou_name])
+        feat_cols, target_cols, X_train, y_train = prep_train_data(train_ou_to_df[ou_name], differencing)
         model_name = f"{ou_name}_{training_timestamp}"
 
         if X_train.shape[1] == 0 or y_train.shape[1] == 0:
