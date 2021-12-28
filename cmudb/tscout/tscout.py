@@ -3,13 +3,12 @@ import argparse
 import logging
 import multiprocessing as mp
 from dataclasses import dataclass
-from pathlib import Path
 
 import psutil
-import setproctitle
 from bcc import BPF, USDT, PerfHWConfig, PerfType, utils
 
 import model
+import setproctitle
 
 
 @dataclass
