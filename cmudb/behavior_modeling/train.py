@@ -10,10 +10,13 @@ import yaml
 import numpy as np
 import pandas as pd
 import pydotplus
-from config import BENCH_DBS, EVAL_DATA_ROOT, MODEL_CONFIG_DIR, MODEL_DIR, OU_NAMES, TRAIN_DATA_ROOT, logger
+from config import (BENCH_DBS, EVAL_DATA_ROOT, MODEL_CONFIG_DIR, MODEL_DIR,
+                    OU_NAMES, TRAIN_DATA_ROOT, logger)
 from model import BehaviorModel
 from sklearn import tree
-from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, mean_squared_error, r2_score
+from sklearn.metrics import (mean_absolute_error,
+                             mean_absolute_percentage_error,
+                             mean_squared_error, r2_score)
 
 BASE_TARGET_COLS = [
     "cpu_cycles",
@@ -164,11 +167,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="OU Model Trainer")
     parser.add_argument("--config_name", type=str, default="default")
     args = parser.parse_args()
+    config_name = args.config_name
 
     # load config
-    config_path = MODEL_CONFIG_DIR / f"{args.config_name}.yaml"
+    config_path = MODEL_CONFIG_DIR / f"{config_name}.yaml"
     if not config_path.exists():
-        raise ValueError(f"Config file: {args.config_name} does not exist")
+        raise ValueError(f"Config file: {config_name} does not exist")
 
     with open(config_path, "r") as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
@@ -203,12 +207,13 @@ if __name__ == "__main__":
 
     train_ou_to_df = load_data(training_data_dir)
     eval_ou_to_df = load_data(eval_data_dir)
-    output_dir = MODEL_DIR / training_timestamp
+    base_model_name = f"{config_name}_{training_timestamp}"
+    output_dir = MODEL_DIR / base_model_name
 
     for ou_name in train_ou_to_df.keys():
         logger.warning(f"Begin Training OU: {ou_name}")
         feat_cols, target_cols, X_train, y_train = prep_train_data(train_ou_to_df[ou_name], feat_diff, target_diff)
-        model_name = f"{ou_name}_{training_timestamp}"
+        ou_model_name = f"{ou_name}_{base_model_name}"
 
         if X_train.shape[1] == 0 or y_train.shape[1] == 0:
             logger.warning(f"{ou_name} has no valid training data, skipping")
@@ -218,7 +223,7 @@ if __name__ == "__main__":
             full_outdir = output_dir / method / ou_name
             full_outdir.mkdir(parents=True, exist_ok=True)
             logger.warning(f"Training OU: {ou_name} with model: {method}")
-            ou_model = BehaviorModel(method, ou_name, training_timestamp, config, feat_cols, target_cols)
+            ou_model = BehaviorModel(method, ou_name, base_model_name, config, feat_cols, target_cols)
             ou_model.train(X_train, y_train)
             ou_model.save()
             evaluate(ou_model, X_train, y_train, full_outdir, train_bench_db, mode="train")

@@ -7,6 +7,7 @@ import pandas as pd
 from config import DATA_ROOT, TRAIN_DATA_ROOT
 
 LEAF_NODES = {"ExecIndexScan", "ExecSeqScan", "ExecIndexOnlyScan", "ExecResult"}
+
 remap_schema = [
     "plan_startup_cost",
     "plan_total_cost",
@@ -85,7 +86,7 @@ print(f"Differencing latest experiment: {experiment}")
 for mode in ["train", "eval"]:
     results_path = DATA_ROOT / mode
     data_path = results_path / experiment / "tpcc"
-    result_files = [f for f in data_path.glob("*.csv") if f.name.startswith("Exec") and "diffed" not in f.name]
+    result_files = [f for f in data_path.glob("*.csv") if f.name.startswith("Exec")]
     ou_to_df = {file.stem: pd.read_csv(file) for file in result_files if os.stat(file).st_size > 0}
     dfs = []
 
@@ -159,7 +160,6 @@ for mode in ["train", "eval"]:
 
     for undiffed_df in dfs:
         undiffed_df = undiffed_df.set_index("rid")
-        undiffed_df.to_csv("undiffed.csv")
         ou_name = undiffed_df.iloc[0]["ou_name"]
 
         if "ou_name" in undiffed_df.columns:

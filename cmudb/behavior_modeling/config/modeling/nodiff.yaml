@@ -3,7 +3,7 @@ train_bench_dbs: [tpcc]
 eval_bench_dbs: [tpcc, tatp, ycsb, wikipedia, voter, twitter, smallbank, auctionmark]
 experiment_name: null
 targets_diff: True
-features_diff: True
+features_diff: False
 methods: [lr, rf, dt]
 normalize: True
 log_transform: False

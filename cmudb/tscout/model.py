@@ -97,7 +97,7 @@ class Feature:
     bpf_tuple: Tuple[BPFVariable] = None
 
 
-QUERY_ID = (BPFVariable(BPFType.u64, "query_id", clang.cindex.TypeKind.ULONG),)
+QUERY_ID = (BPFVariable(BPFType.i64, "query_id", clang.cindex.TypeKind.SLONG),)
 
 """
 An OU is specified via (operator, postgres_function, feature_types).
@@ -114,7 +114,10 @@ OU_DEFS = [
     ("ExecAgg",
      [
          Feature("QueryId", readarg_p=False, bpf_tuple=QUERY_ID),
-         Feature("Agg")
+         Feature("Agg"),
+         Feature("left", readarg_p=False, bpf_tuple=(BPFVariable(BPFType.u64, "left_plan_node_id", clang.cindex.TypeKind.ULONG),)),
+         Feature("right", readarg_p=False, bpf_tuple=(BPFVariable(BPFType.u64, "right_plan_node_id", clang.cindex.TypeKind.ULONG),)),
+         
      ]),
     ("ExecAppend",
      [

@@ -99,8 +99,12 @@ def init_pg():
             shell=True,
         ).wait()
 
-        Popen(args=['''./build/bin/psql -d 'benchbase' -c "CREATE EXTENSION pg_stat_statements;"'''], shell=True).wait()
-        Popen(args=['''./build/bin/psql -d 'benchbase' -c "CREATE EXTENSION pg_store_plans;"'''], shell=True).wait()
+        if config["pg_stat_statements"]:
+            Popen(
+                args=['''./build/bin/psql -d 'benchbase' -c "CREATE EXTENSION pg_stat_statements;"'''], shell=True
+            ).wait()
+        if config["pg_store_plans"]:
+            Popen(args=['''./build/bin/psql -d 'benchbase' -c "CREATE EXTENSION pg_store_plans;"'''], shell=True).wait()
 
         # Turn off pager
         Popen(
@@ -217,8 +221,11 @@ def exec_benchbase(bench_db):
             build_benchbase(benchbase_dir)
         os.chdir(benchbase_snapshot_dir)
 
-        Popen(args=[f'''{psql_path} -d 'benchbase' -c "SELECT pg_stat_statements_reset();"'''], shell=True).wait()
-        Popen(args=[f'''{psql_path} -d 'benchbase' -c "SELECT pg_store_plans_reset();"'''], shell=True).wait()
+        if config["pg_stat_statements"]:
+            Popen(args=[f'''{psql_path} -d 'benchbase' -c "SELECT pg_stat_statements_reset();"'''], shell=True).wait()
+
+        if config["pg_store_plans"]:
+            Popen(args=[f'''{psql_path} -d 'benchbase' -c "SELECT pg_store_plans_reset();"'''], shell=True).wait()
 
         # run benchbase
         benchbase_cmd = f"java -jar benchbase.jar -b {bench_db} -c config/postgres/{bench_db}_config.xml --create=false --load=false --execute=true"
@@ -227,21 +234,22 @@ def exec_benchbase(bench_db):
         if bbase_proc.returncode != 0:
             raise RuntimeError(f"Benchbase failed with return code: {bbase_proc.returncode}")
 
-        with open(results_dir / "stat_file.csv", "w") as stat_file:
-            Popen(
-                args=[f'''{psql_path} -d 'benchbase' --csv -c "SELECT * FROM pg_stat_statements;"'''],
-                shell=True,
-                stdout=stat_file,
-                stderr=stat_file,
-            ).wait()
-
-        with open(results_dir / "plan_file.csv", "w") as stat_file:
-            Popen(
-                args=[f'''{psql_path} -d 'benchbase' --csv -c "SELECT * FROM pg_store_plans;"'''],
-                shell=True,
-                stdout=stat_file,
-                stderr=stat_file,
-            ).wait()
+        if config["pg_stat_statements"]:
+            with open(results_dir / "stat_file.csv", "w") as stat_file:
+                Popen(
+                    args=[f'''{psql_path} -d 'benchbase' --csv -c "SELECT * FROM pg_stat_statements;"'''],
+                    shell=True,
+                    stdout=stat_file,
+                    stderr=stat_file,
+                ).wait()
+        if config["pg_store_plans"]:
+            with open(results_dir / "plan_file.csv", "w") as stat_file:
+                Popen(
+                    args=[f'''{psql_path} -d 'benchbase' --csv -c "SELECT * FROM pg_store_plans;"'''],
+                    shell=True,
+                    stdout=stat_file,
+                    stderr=stat_file,
+                ).wait()
 
         # Move benchbase results to experiment results directory
         shutil.move(str(benchbase_snapshot_dir / "results"), str(benchbase_results_dir))
@@ -320,7 +328,7 @@ def run(bench_db, results_dir):
 
     Popen(args=["""./build/bin/pg_ctl -D data -o "-W 2" start"""], shell=True).wait()
 
-    if config["prewarm"]:
+    if config["pg_prewarm"]:
         pg_analyze(bench_db)
         pg_prewarm(bench_db)
 
