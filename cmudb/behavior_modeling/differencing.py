@@ -176,5 +176,5 @@ for mode in ["train", "eval"]:
         ou_to_diffed[ou_name] = diffed_df
 
     for ou_name, diffed_df in ou_to_diffed.items():
-        out_path = data_path / f"{ou_name}_diffed.csv"
+        out_path = data_path / f"{ou_name}.csv"
         diffed_df.to_csv(str(out_path), index=True)

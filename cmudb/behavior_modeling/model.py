@@ -122,9 +122,6 @@ class BehaviorModel:
         return y
 
     def save(self):
-        model_dir = MODEL_DIR / self.timestamp
-        model_dir.mkdir(parents=True, exist_ok=True)
-        model_path = model_dir / f"{self.method}_{self.ou_name}.pkl"
-
-        with open(model_path, "wb") as f:
+        model_dir = MODEL_DIR / self.timestamp / self.method / self.ou_name
+        with open(model_dir / f"{self.method}_{self.ou_name}.pkl", "wb") as f:
             pickle.dump(self.model, f)

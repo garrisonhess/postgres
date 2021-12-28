@@ -43,15 +43,17 @@ DIFF_TARGET_COLS = [
     "diffed_elapsed_us",
 ]
 
+ALL_TARGET_COLS = BASE_TARGET_COLS + DIFF_TARGET_COLS
+
 
 def evaluate(ou_model, X, y, output_dir, dataset, mode):
     if mode != "train" and mode != "eval":
         raise ValueError(f"Invalid mode: {mode}")
 
     if mode == "train":
-        mode = "Training"
+        pretty_mode = "Training"
     else:
-        mode = "Evaluation"
+        pretty_mode = "Evaluation"
 
     y_pred = ou_model.predict(X)
 
@@ -59,21 +61,21 @@ def evaluate(ou_model, X, y, output_dir, dataset, mode):
     paired_cols = zip([f"pred_{col}" for col in target_cols], target_cols)
     reordered_cols = feat_cols + list(itertools.chain.from_iterable(paired_cols))
 
-    preds_path = output_dir / f"{ou_model.ou_name}_{ou_model.method}_{dataset}_{mode}_preds.csv"
+    preds_path = output_dir / f"{ou_model.ou_name}_{ou_model.method}_{dataset}_{pretty_mode}_preds.csv"
     with open(preds_path, "w+") as preds_file:
         temp = np.concatenate((X, y, y_pred), axis=1)
         test_result_df = pd.DataFrame(temp, columns=feat_cols + target_cols + [f"pred_{col}" for col in target_cols])
         test_result_df[reordered_cols].to_csv(preds_file, float_format="%.1f", index=False)
 
-    if ou_model.method == "dt":
+    if ou_model.method == "dt" and mode == "train":
         for idx, target_name in enumerate(target_cols):
-            dot = tree.export_graphviz(ou_model._base_model.estimators_[idx], feature_names=feat_cols, filled=True)
-            dt_file = f"{output_dir}/{ou_name}_{mode}_treeplot_{target_name}.png"
+            dot = tree.export_graphviz(ou_model.model.estimators_[idx], feature_names=feat_cols, filled=True)
+            dt_file = f"{output_dir}/{ou_name}_{pretty_mode}_treeplot_{target_name}.png"
             pydotplus.graphviz.graph_from_dot_data(dot).write_png(dt_file)
 
-    ou_eval_path = output_dir / f"{ou_model.ou_name}_{ou_model.method}_{dataset}_{mode}_summary.txt"
+    ou_eval_path = output_dir / f"{ou_model.ou_name}_{ou_model.method}_{dataset}_{pretty_mode}_summary.txt"
     with open(ou_eval_path, "w+") as eval_file:
-        eval_file.write(f"\n============= {mode}: Model Summary for {ou_name} Model: {method} =============\n")
+        eval_file.write(f"\n============= {pretty_mode}: Model Summary for {ou_name} Model: {method} =============\n")
         eval_file.write(f"Features used: {feat_cols}\n")
         eval_file.write(f"Num Features used: {len(feat_cols)}\n")
         eval_file.write(f"Targets estimated: {target_cols}\n")
@@ -82,24 +84,23 @@ def evaluate(ou_model, X, y, output_dir, dataset, mode):
             eval_file.write(f"===== Target: {target} =====\n")
             target_pred = y_pred[:, target_idx]
             target_true = y[:, target_idx]
+            true_mean = target_true.mean()
+            pred_mean = target_pred.mean()
             mse = mean_squared_error(target_true, target_pred)
             mae = mean_absolute_error(target_true, target_pred)
             mape = mean_absolute_percentage_error(target_true, target_pred)
             r2 = r2_score(target_true, target_pred)
+            eval_file.write(f"Target Mean: {round(true_mean, 2)}, Predicted Mean: {round(pred_mean, 2)}\n")
             eval_file.write(f"Mean Absolute Percentage Error (MAPE): {round(mape, 2)}\n")
             eval_file.write(f"Mean Squared Error (MSE): {round(mse, 2)}\n")
             eval_file.write(f"Mean Absolute Error (MAE): {round(mae, 2)}\n")
             eval_file.write(f"Percentage Explained Variation (R-squared): {round(r2, 2)}\n")
+
         eval_file.write("======================== END SUMMARY ========================\n")
 
 
-def load_data(data_dir, diff):
-
-    if diff:
-        result_paths = [fp for fp in data_dir.glob("*.csv") if "diffed" in fp.name and os.stat(fp).st_size > 0]
-    else:
-        result_paths = [fp for fp in data_dir.glob("*.csv") if "diffed" not in fp.name and os.stat(fp).st_size > 0]
-
+def load_data(data_dir):
+    result_paths = [fp for fp in data_dir.glob("*.csv") if os.stat(fp).st_size > 0]
     ou_name_to_df = dict()
 
     for ou_name in OU_NAMES:
@@ -114,11 +115,11 @@ def load_data(data_dir, diff):
     return ou_name_to_df
 
 
-def prep_train_data(df, diff):
+def prep_train_data(df, feat_diff, target_diff):
 
     cols_to_remove = ["start_time", "end_time", "cpu_id", "query_id", "rid", "plan_node_id"]
 
-    if diff:
+    if target_diff:
         cols_to_remove += BASE_TARGET_COLS
     else:
         cols_to_remove += DIFF_TARGET_COLS
@@ -130,26 +131,24 @@ def prep_train_data(df, diff):
             cols_to_remove.append(col)
 
     df = df.drop(cols_to_remove, axis=1)
-
-    print(df.columns)
     df = df.sort_index(axis=1)
 
     if len(cols_to_remove) > 0:
         logger.info(f"Dropped zero-variance columns: {cols_to_remove}")
         logger.info(f"Num Remaining: {len(df.columns)}, Num Removed {len(cols_to_remove)}")
 
-    if diff:
-        feat_cols = [col for col in df.columns if col not in DIFF_TARGET_COLS]
+    if target_diff:
         target_cols = [col for col in df.columns if col in DIFF_TARGET_COLS]
     else:
-        feat_cols = [col for col in df.columns if col not in BASE_TARGET_COLS]
         target_cols = [col for col in df.columns if col in BASE_TARGET_COLS]
+
+    feat_cols = [col for col in df.columns if col not in ALL_TARGET_COLS]
+
+    if not feat_diff:
+        feat_cols = [col for col in df.columns if not col.startswith("diffed")]
 
     X = df[feat_cols].values
     y = df[target_cols].values
-
-    print(X.shape)
-    print(y.shape)
 
     return feat_cols, target_cols, X, y
 
@@ -179,7 +178,8 @@ if __name__ == "__main__":
     train_bench_db = train_bench_dbs[0]
     eval_bench_dbs = config["eval_bench_dbs"]
     eval_bench_db = eval_bench_dbs[0]
-    differencing = config["differencing"]
+    feat_diff = config["features_diff"]
+    target_diff = config["targets_diff"]
 
     for train_bench_db in train_bench_dbs:
         if train_bench_db not in BENCH_DBS:
@@ -201,13 +201,13 @@ if __name__ == "__main__":
     if not eval_data_dir.exists():
         raise ValueError(f"Eval Benchmark DB {eval_bench_db} not found in experiment: {experiment_name}")
 
-    train_ou_to_df = load_data(training_data_dir, differencing)
-    eval_ou_to_df = load_data(eval_data_dir, differencing)
+    train_ou_to_df = load_data(training_data_dir)
+    eval_ou_to_df = load_data(eval_data_dir)
     output_dir = MODEL_DIR / training_timestamp
 
     for ou_name in train_ou_to_df.keys():
         logger.warning(f"Begin Training OU: {ou_name}")
-        feat_cols, target_cols, X_train, y_train = prep_train_data(train_ou_to_df[ou_name], differencing)
+        feat_cols, target_cols, X_train, y_train = prep_train_data(train_ou_to_df[ou_name], feat_diff, target_diff)
         model_name = f"{ou_name}_{training_timestamp}"
 
         if X_train.shape[1] == 0 or y_train.shape[1] == 0:
@@ -215,10 +215,12 @@ if __name__ == "__main__":
             continue
 
         for method in config["methods"]:
+            full_outdir = output_dir / method / ou_name
+            full_outdir.mkdir(parents=True, exist_ok=True)
             logger.warning(f"Training OU: {ou_name} with model: {method}")
             ou_model = BehaviorModel(method, ou_name, training_timestamp, config, feat_cols, target_cols)
             ou_model.train(X_train, y_train)
             ou_model.save()
-            evaluate(ou_model, X_train, y_train, output_dir, train_bench_db, mode="train")
+            evaluate(ou_model, X_train, y_train, full_outdir, train_bench_db, mode="train")
             X_eval, y_eval = prep_eval_data(eval_ou_to_df[ou_name], feat_cols, target_cols)
-            evaluate(ou_model, X_eval, y_eval, output_dir, eval_bench_db, mode="eval")
+            evaluate(ou_model, X_eval, y_eval, full_outdir, eval_bench_db, mode="eval")
