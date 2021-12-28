@@ -320,7 +320,8 @@ def run(bench_db, results_dir):
 
     # reload config to make a new logfile
     os.chdir(pg_dir)
-    Popen(args=["./build/bin/pg_ctl -D data stop -m"], shell=True).wait()
+    # Popen(args=["./build/bin/pg_ctl -D data stop"], shell=True).wait()
+    Popen(args=["./build/bin/pg_ctl stop -D data -m smart"], shell=True).wait()
 
     # remove pre-existing logs
     for log_path in [fp for fp in (pg_dir / "data/log").glob("*") if fp.suffix in ["csv", "log"]]:
@@ -371,13 +372,18 @@ if __name__ == "__main__":
 
     # Setup experiment directory
     experiment_name = f"experiment-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+    modes = ["train", "eval"] if not config["debug"] else ["debug"]
 
-    for mode in ["train", "eval"]:
+    for mode in modes:
         mode_dir = DATA_ROOT / mode / experiment_name
+
+        # copy datagen configuration to the output directory
+        Path(mode_dir).mkdir(parents=True)
+        shutil.copy(config_path, mode_dir)
 
         for bench_db in bench_dbs:
             results_dir = mode_dir / bench_db
-            Path(results_dir).mkdir(parents=True, exist_ok=True)
+            Path(results_dir).mkdir()
             benchbase_results_dir = results_dir / "benchbase"
             Path(benchbase_results_dir).mkdir(exist_ok=True)
             run(bench_db, results_dir)

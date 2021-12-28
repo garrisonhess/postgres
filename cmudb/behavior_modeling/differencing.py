@@ -113,7 +113,7 @@ for mode in ["train", "eval"]:
     total_records = len(unified_df.index)
     diffed_records = []
 
-    if DEBUG: 
+    if DEBUG:
         unified_df.to_csv("unified_df.csv")
 
     for i in range(total_records):
@@ -152,7 +152,7 @@ for mode in ["train", "eval"]:
     diffed_cols = pd.DataFrame(diffed_records)
     diffed_cols = diffed_cols.set_index("rid")
 
-    if DEBUG: 
+    if DEBUG:
         diffed_cols.to_csv("diffed_cols.csv")
 
     # prepare diffed data for integration into undiffed
