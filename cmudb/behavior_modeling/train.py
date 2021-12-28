@@ -145,7 +145,7 @@ def prep_train_data(df, feat_diff, target_diff):
     feat_cols = [col for col in df.columns if col not in ALL_TARGET_COLS]
 
     if not feat_diff:
-        feat_cols = [col for col in df.columns if not col.startswith("diffed")]
+        feat_cols = [col for col in feat_cols if not col.startswith("diffed")]
 
     X = df[feat_cols].values
     y = df[target_cols].values
