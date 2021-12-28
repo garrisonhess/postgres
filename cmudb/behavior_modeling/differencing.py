@@ -77,6 +77,8 @@ diff_cols = [
     "memory_bytes",
 ]
 
+DEBUG = False
+
 # get latest experiment
 experiment_list = sorted([exp_path.name for exp_path in TRAIN_DATA_ROOT.glob("*")])
 assert len(experiment_list) > 0, "No experiments found"
@@ -110,7 +112,9 @@ for mode in ["train", "eval"]:
     unified_df = unified_df.sort_values(by=["query_id", "start_time", "plan_node_id"], axis=0)
     total_records = len(unified_df.index)
     diffed_records = []
-    unified_df.to_csv("unified_df.csv")
+
+    if DEBUG: 
+        unified_df.to_csv("unified_df.csv")
 
     for i in range(total_records):
         curr_record = unified_df.iloc[i].copy()
@@ -147,7 +151,9 @@ for mode in ["train", "eval"]:
 
     diffed_cols = pd.DataFrame(diffed_records)
     diffed_cols = diffed_cols.set_index("rid")
-    diffed_cols.to_csv("diffed_cols.csv")
+
+    if DEBUG: 
+        diffed_cols.to_csv("diffed_cols.csv")
 
     # prepare diffed data for integration into undiffed
     nondiff_cols = [col for col in diffed_cols.columns if col not in diff_cols]

@@ -320,7 +320,7 @@ def run(bench_db, results_dir):
 
     # reload config to make a new logfile
     os.chdir(pg_dir)
-    Popen(args=["./build/bin/pg_ctl -D data stop"], shell=True).wait()
+    Popen(args=["./build/bin/pg_ctl -D data stop -m"], shell=True).wait()
 
     # remove pre-existing logs
     for log_path in [fp for fp in (pg_dir / "data/log").glob("*") if fp.suffix in ["csv", "log"]]:

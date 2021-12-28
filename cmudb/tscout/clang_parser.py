@@ -5,11 +5,11 @@ Parse C code into a map which maps from (struct name) to
 (base-class- and record-type- expanded fields list).
 """
 
-import logging
 from dataclasses import dataclass
 from typing import List, Mapping
 
 import clang.cindex
+import logging
 
 logger = logging.getLogger('tscout')
 
