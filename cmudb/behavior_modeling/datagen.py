@@ -99,6 +99,13 @@ def init_pg():
             shell=True,
         ).wait()
 
+        if config["auto_explain"]:
+            Popen(
+                args=['''./build/bin/psql -d benchbase -c "ALTER SYSTEM SET auto_explain.log_min_duration = 0;"'''],
+                shell=True,
+            ).wait()
+            Popen(args=["""./build/bin/pg_ctl -D data reload"""], shell=True).wait()
+
         if config["pg_stat_statements"]:
             Popen(
                 args=['''./build/bin/psql -d 'benchbase' -c "CREATE EXTENSION pg_stat_statements;"'''], shell=True
@@ -320,7 +327,6 @@ def run(bench_db, results_dir):
 
     # reload config to make a new logfile
     os.chdir(pg_dir)
-    # Popen(args=["./build/bin/pg_ctl -D data stop"], shell=True).wait()
     Popen(args=["./build/bin/pg_ctl stop -D data -m smart"], shell=True).wait()
 
     # remove pre-existing logs
