@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
+import json
 import os
 import uuid
 
+import numpy as np
 import pandas as pd
 from config import DATA_ROOT, TRAIN_DATA_ROOT
 
@@ -77,117 +79,203 @@ diff_cols = [
     "memory_bytes",
 ]
 
-DEBUG = False
-
-class PlanTree:
-    def __init__(self):
-        self.x = 1
+DEBUG = True
 
 
+class PlanNode:
+    def __init__(self, query_id, json_plan, is_root):
+        self.query_id = query_id
+        self.is_root = is_root
+        self.node_type = json_plan["Node Type"]
+        self.startup_cost = json_plan["Startup Cost"]
+        self.total_cost = json_plan["Total Cost"]
+        self.plans = (
+            [PlanNode(query_id, subplan, False) for subplan in json_plan["Plans"]] if "Plans" in json_plan else []
+        )
 
-if __name__ == "__main__": 
+    def __repr__(self):
+        return f"{self.node_type}"
+
+
+def show_plan_tree(plan_node, depth=0):
+    indent = ">" * (depth + 1)  # incremented so we always prefix with >
+    print(f"{indent} {plan_node}")
+
+    for child in plan_node.plans:
+        show_plan_tree(child, depth + 1)
+
+
+# def differencing():
+#     for i in range(total_records):
+#         curr_record = unified_df.iloc[i].copy()
+#         curr_query_id = curr_record["query_id"]
+#         curr_end_time = curr_record["end_time"]
+#         curr_ou_name = curr_record["ou_name"]
+
+#         if curr_ou_name in LEAF_NODES:
+#             continue
+
+#         if curr_record["plan_node_id"] > 1:
+#             continue
+
+#         if i % 100 == 0:
+#             print(f"curr record: {i} ou_name: {curr_ou_name} and total_records: {total_records}")
+
+#         lookahead = 1
+
+#         while True:
+#             if i + lookahead >= len(unified_df.index):
+#                 break
+
+#             next_record = unified_df.iloc[i + lookahead]
+
+#             if curr_ou_name == "ExecAgg" and lookahead > 1:
+#                 break
+#             if next_record["start_time"] > curr_end_time or next_record["query_id"] != curr_query_id:
+#                 break
+
+#             curr_record[diff_cols] -= next_record[diff_cols]
+#             lookahead += 1
+
+#         diffed_records.append(curr_record)
+
+#     diffed_cols = pd.DataFrame(diffed_records)
+#     diffed_cols = diffed_cols.set_index("rid")
+
+#     if DEBUG:
+#         diffed_cols.to_csv("diffed_cols.csv")
+
+#     # prepare diffed data for integration into undiffed
+#     nondiff_cols = [col for col in diffed_cols.columns if col not in diff_cols]
+#     diffed_cols = diffed_cols.drop(nondiff_cols, axis=1)
+#     mapper = {col: f"diffed_{col}" for col in diffed_cols.columns}
+#     diffed_cols = diffed_cols.rename(columns=mapper)
+
+#     # add the new columns onto the undiffed data
+#     ou_to_diffed = {}
+
+#     for undiffed_df in tscout_dfs:
+#         undiffed_df = undiffed_df.set_index("rid")
+#         ou_name = undiffed_df.iloc[0]["ou_name"]
+
+#         if "ou_name" in undiffed_df.columns:
+#             undiffed_df = undiffed_df.drop(["ou_name"], axis=1)
+
+#         if ou_name in LEAF_NODES:
+#             continue
+
+#         # find the intersection of RIDs between diffed_cols and each df
+#         rids_to_update = undiffed_df.index.intersection(diffed_cols.index)
+#         assert undiffed_df.index.difference(diffed_cols.index).shape[0] == 0
+#         print(f"num records to update: {rids_to_update.shape[0]}")
+#         diffed_df = undiffed_df.join(diffed_cols, how="inner")
+#         ou_to_diffed[ou_name] = diffed_df
+
+#     for ou_name, diffed_df in ou_to_diffed.items():
+#         out_path = data_dir / f"{ou_name}.csv"
+#         diffed_df.to_csv(str(out_path), index=True)
+
+
+def get_plan_trees(data_dir, tscout_query_ids):
+    plan_file_path = data_dir / "plan_file.csv"
+    plan_df = pd.read_csv(plan_file_path)
+    query_id_to_plan = dict()
+    plan_df = plan_df[["queryid", "planid", "plan"]]
+    plan_df["queryid"] = plan_df["queryid"].astype(np.uint64)
+
+    for i in range(len(plan_df.index)):
+        query_id = plan_df.iloc[i]["queryid"]
+        if query_id in tscout_query_ids:
+            plan = plan_df.iloc[i]["plan"]
+            query_id_to_plan[query_id] = json.loads(plan)
+
+    query_id_to_plan_tree = dict()
+
+    for query_id, plan in query_id_to_plan.items():
+        plan_tree = PlanNode(query_id, plan["Plan"], is_root=True)
+        query_id_to_plan_tree[query_id] = plan_tree
+
+    return query_id_to_plan_tree
+
+
+def load_tscout_data(data_dir):
+    result_files = [f for f in data_dir.glob("*.csv") if f.name.startswith("Exec")]
+    ou_to_df = {file.stem: pd.read_csv(file) for file in result_files if os.stat(file).st_size > 0}
+    tscout_dfs = []
+
+    for ou_name, df in ou_to_df.items():
+        mapper = dict()
+        for col in df.columns:
+            for mapper_value in remap_schema:
+                if mapper_value in col:
+                    mapper[col] = mapper_value
+        df = df.rename(columns=mapper)
+        rids = [uuid.uuid4().hex for _ in range(df.shape[0])]
+        df["rid"] = rids
+        df["ou_name"] = ou_name
+        df["query_id"] = df["query_id"].astype(np.uint64)
+        tscout_dfs.append(df)
+
+    unified_dfs = []
+    for i in range(len(tscout_dfs)):
+        unified_dfs.append(tscout_dfs[i][common_schema])
+
+    unified_df = pd.concat(unified_dfs, axis=0)
+    unified_df = unified_df.sort_values(by=["query_id", "start_time", "plan_node_id"], axis=0)
+
+    if DEBUG:
+        unified_df.to_csv("unified_df.csv")
+
+    tscout_query_ids = set(pd.unique(unified_df["query_id"]))
+    unified_df = add_invocation_ids(unified_df)
+
+    return tscout_dfs, unified_df, tscout_query_ids
+
+
+def add_invocation_ids(unified_df):
+    prev_query_id = 0
+    query_invocation_id = 0
+    global_invocation_id = 0
+    query_invocation_ids = []
+    global_invocation_ids = []
+
+    for (_, (query_id, plan_node_id)) in unified_df[["query_id", "plan_node_id"]].iterrows():
+        if query_id != prev_query_id:
+            query_invocation_id = 0
+            prev_query_id = query_id
+        elif plan_node_id == 0:
+            query_invocation_id += 1
+            global_invocation_id += 1
+
+        query_invocation_ids.append(query_invocation_id)
+        global_invocation_ids.append(global_invocation_id)
+
+    assert len(query_invocation_ids) == len(unified_df.index)
+    unified_df["query_invocation_id"] = query_invocation_ids
+    unified_df["global_invocation_id"] = global_invocation_ids
+    return unified_df
+
+
+if __name__ == "__main__":
     # get latest experiment
     experiment_list = sorted([exp_path.name for exp_path in TRAIN_DATA_ROOT.glob("*")])
     assert len(experiment_list) > 0, "No experiments found"
     experiment = experiment_list[-1]
     print(f"Differencing latest experiment: {experiment}")
 
-    for mode in ["train", "eval"]:
-        results_path = DATA_ROOT / mode
-        data_path = results_path / experiment / "tpcc"
-        result_files = [f for f in data_path.glob("*.csv") if f.name.startswith("Exec")]
-        ou_to_df = {file.stem: pd.read_csv(file) for file in result_files if os.stat(file).st_size > 0}
-        dfs = []
+    # for mode in ["train", "eval"]:
+    for mode in ["train"]:
+        data_dir = DATA_ROOT / mode / experiment / "tpcc"
+        tscout_dfs, unified_df, tscout_query_ids = load_tscout_data(data_dir)
+        query_id_to_plan_trees = get_plan_trees(data_dir, tscout_query_ids)
 
-        for ou_name, df in ou_to_df.items():
-            mapper = dict()
-            for col in df.columns:
-                for mapper_value in remap_schema:
-                    if mapper_value in col:
-                        mapper[col] = mapper_value
-            df = df.rename(columns=mapper)
-            rids = [uuid.uuid4().hex for _ in range(df.shape[0])]
-            df["rid"] = rids
-            df["ou_name"] = ou_name
-            dfs.append(df)
+        for query_id, plan_tree in query_id_to_plan_trees.items():
+            print(f"\nquery_id: {query_id}")
+            show_plan_tree(plan_tree)
 
-        unified_dfs = []
-        for i in range(len(dfs)):
-            unified_dfs.append(dfs[i][common_schema])
+        print(unified_df.head(10))
 
-        unified_df = pd.concat(unified_dfs, axis=0)
-        unified_df = unified_df.sort_values(by=["query_id", "start_time", "plan_node_id"], axis=0)
-        total_records = len(unified_df.index)
-        diffed_records = []
+        # then match every invocation to its plan_tree
 
-        if DEBUG:
-            unified_df.to_csv("unified_df.csv")
-
-        for i in range(total_records):
-            curr_record = unified_df.iloc[i].copy()
-            curr_query_id = curr_record["query_id"]
-            curr_end_time = curr_record["end_time"]
-            curr_ou_name = curr_record["ou_name"]
-
-            if curr_ou_name in LEAF_NODES:
-                continue
-
-            if curr_record["plan_node_id"] > 1:
-                continue
-
-            if i % 100 == 0:
-                print(f"curr record: {i} ou_name: {curr_ou_name} and total_records: {total_records}")
-
-            lookahead = 1
-
-            while True:
-                if i + lookahead >= len(unified_df.index):
-                    break
-
-                next_record = unified_df.iloc[i + lookahead]
-
-                if curr_ou_name == "ExecAgg" and lookahead > 1:
-                    break
-                if next_record["start_time"] > curr_end_time or next_record["query_id"] != curr_query_id:
-                    break
-
-                curr_record[diff_cols] -= next_record[diff_cols]
-                lookahead += 1
-
-            diffed_records.append(curr_record)
-
-        diffed_cols = pd.DataFrame(diffed_records)
-        diffed_cols = diffed_cols.set_index("rid")
-
-        if DEBUG:
-            diffed_cols.to_csv("diffed_cols.csv")
-
-        # prepare diffed data for integration into undiffed
-        nondiff_cols = [col for col in diffed_cols.columns if col not in diff_cols]
-        diffed_cols = diffed_cols.drop(nondiff_cols, axis=1)
-        mapper = {col: f"diffed_{col}" for col in diffed_cols.columns}
-        diffed_cols = diffed_cols.rename(columns=mapper)
-
-        # add the new columns onto the undiffed data
-        ou_to_diffed = {}
-
-        for undiffed_df in dfs:
-            undiffed_df = undiffed_df.set_index("rid")
-            ou_name = undiffed_df.iloc[0]["ou_name"]
-
-            if "ou_name" in undiffed_df.columns:
-                undiffed_df = undiffed_df.drop(["ou_name"], axis=1)
-
-            if ou_name in LEAF_NODES:
-                continue
-
-            # find the intersection of RIDs between diffed_cols and each df
-            rids_to_update = undiffed_df.index.intersection(diffed_cols.index)
-            assert undiffed_df.index.difference(diffed_cols.index).shape[0] == 0
-            print(f"num records to update: {rids_to_update.shape[0]}")
-            diffed_df = undiffed_df.join(diffed_cols, how="inner")
-            ou_to_diffed[ou_name] = diffed_df
-
-        for ou_name, diffed_df in ou_to_diffed.items():
-            out_path = data_path / f"{ou_name}.csv"
-            diffed_df.to_csv(str(out_path), index=True)
+        # we want something like RID -> ChildRIDS
+        # then we can go df[rid][diff_cols] -= df[child_rids][diff_cols]

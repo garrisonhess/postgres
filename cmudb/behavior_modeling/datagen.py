@@ -250,9 +250,10 @@ def exec_benchbase(bench_db):
                     stderr=stat_file,
                 ).wait()
         if config["pg_store_plans"]:
+            plans_query = """SELECT queryid, planid, plan FROM pg_store_plans ORDER BY queryid, planid"""
             with open(results_dir / "plan_file.csv", "w") as stat_file:
                 Popen(
-                    args=[f'''{psql_path} -d 'benchbase' --csv -c "SELECT * FROM pg_store_plans;"'''],
+                    args=[f'''{psql_path} -d 'benchbase' --csv -c "{plans_query}"'''],
                     shell=True,
                     stdout=stat_file,
                     stderr=stat_file,
