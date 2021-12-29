@@ -7,6 +7,7 @@ import uuid
 import numpy as np
 import pandas as pd
 from config import DATA_ROOT, TRAIN_DATA_ROOT
+from tqdm import tqdm
 
 LEAF_NODES = {"ExecIndexScan", "ExecSeqScan", "ExecIndexOnlyScan", "ExecResult"}
 
@@ -98,6 +99,9 @@ class PlanNode:
 
 
 def show_plan_tree(plan_node, depth=0):
+    if depth == 0:
+        print(f"===== QueryID: {plan_node.query_id} =====")
+
     indent = ">" * (depth + 1)  # incremented so we always prefix with >
     print(f"{indent} {plan_node}")
 
@@ -223,11 +227,11 @@ def load_tscout_data(data_dir):
     unified_df = pd.concat(unified_dfs, axis=0)
     unified_df = unified_df.sort_values(by=["query_id", "start_time", "plan_node_id"], axis=0)
 
-    if DEBUG:
-        unified_df.to_csv("unified_df.csv")
-
     tscout_query_ids = set(pd.unique(unified_df["query_id"]))
     unified_df = add_invocation_ids(unified_df)
+
+    if DEBUG:
+        unified_df.to_csv("unified_df.csv")
 
     return tscout_dfs, unified_df, tscout_query_ids
 
@@ -239,7 +243,7 @@ def add_invocation_ids(unified_df):
     query_invocation_ids = []
     global_invocation_ids = []
 
-    for (_, (query_id, plan_node_id)) in unified_df[["query_id", "plan_node_id"]].iterrows():
+    for query_id, plan_node_id in unified_df[["query_id", "plan_node_id"]].values.tolist():
         if query_id != prev_query_id:
             query_invocation_id = 0
             prev_query_id = query_id
@@ -253,6 +257,7 @@ def add_invocation_ids(unified_df):
     assert len(query_invocation_ids) == len(unified_df.index)
     unified_df["query_invocation_id"] = query_invocation_ids
     unified_df["global_invocation_id"] = global_invocation_ids
+
     return unified_df
 
 
@@ -270,7 +275,6 @@ if __name__ == "__main__":
         query_id_to_plan_trees = get_plan_trees(data_dir, tscout_query_ids)
 
         for query_id, plan_tree in query_id_to_plan_trees.items():
-            print(f"\nquery_id: {query_id}")
             show_plan_tree(plan_tree)
 
         print(unified_df.head(10))
