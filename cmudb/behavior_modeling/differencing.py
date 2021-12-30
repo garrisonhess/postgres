@@ -83,30 +83,84 @@ diff_cols = [
 DEBUG = True
 
 
-class PlanNode:
-    def __init__(self, query_id, json_plan, is_root):
+class PlanTree:
+    def __init__(self, query_id, json_plan):
         self.query_id = query_id
-        self.is_root = is_root
+        self.json_plan = json_plan
+        self.root = PlanNode(json_plan)
+        self.parent_id_to_child_ids = build_id_map(self.root)
+
+
+def build_id_map(root):
+    map = dict()
+    map[root.plan_node_id] = [child.plan_node_id for child in root.plans]
+
+    for child in root.plans:
+        _build_id_map(child, map)
+
+    return map
+
+
+def _build_id_map(node, map):
+
+    map[node.plan_node_id] = [child.plan_node_id for child in node.plans]
+
+    for child in node.plans:
+        _build_id_map(child, map)
+
+
+class PlanNode:
+    def __init__(self, json_plan):
         self.node_type = json_plan["Node Type"]
         self.startup_cost = json_plan["Startup Cost"]
         self.total_cost = json_plan["Total Cost"]
-        self.plans = (
-            [PlanNode(query_id, subplan, False) for subplan in json_plan["Plans"]] if "Plans" in json_plan else []
-        )
+        self.plan_node_id = json_plan["plan_node_id"]
+        self.depth = json_plan["depth"]
+        self.plans = [PlanNode(child_plan) for child_plan in json_plan["Plans"]] if "Plans" in json_plan else []
 
     def __repr__(self):
-        return f"{self.node_type}"
+        indent = ">" * (self.depth + 1)  # incremented so we always prefix with >
+        return f"{indent} type: {self.node_type}, total_cost: {self.total_cost}, node_id: {self.plan_node_id}, depth: {self.depth}"
 
 
-def show_plan_tree(plan_node, depth=0):
-    if depth == 0:
-        print(f"===== QueryID: {plan_node.query_id} =====")
+def show_plan_tree(plan_tree):
+    print(f"\n===== QueryID: {plan_tree.query_id} =====")
+    print(f"Parent ID to Child IDs: {plan_tree.parent_id_to_child_ids}")
+    print(plan_tree.root)
 
-    indent = ">" * (depth + 1)  # incremented so we always prefix with >
-    print(f"{indent} {plan_node}")
+    for child in plan_tree.root.plans:
+        show_plan_node(child)
+
+
+def show_plan_node(plan_node):
+    print(plan_node)
 
     for child in plan_node.plans:
-        show_plan_tree(child, depth + 1)
+        show_plan_node(child)
+
+
+def set_node_ids(json_plan):
+    json_plan["plan_node_id"] = 0
+    json_plan["depth"] = 0
+
+    next_node_id = 1
+
+    if "Plans" in json_plan:
+        for child in json_plan["Plans"]:
+            next_node_id = _set_node_ids(child, next_node_id, 1)
+
+
+def _set_node_ids(json_plan, next_node_id, depth):
+
+    json_plan["plan_node_id"] = next_node_id
+    json_plan["depth"] = depth
+    next_node_id += 1
+
+    if "Plans" in json_plan:
+        for child in json_plan["Plans"]:
+            next_node_id = _set_node_ids(child, next_node_id, depth + 1)
+
+    return next_node_id
 
 
 # def differencing():
@@ -195,9 +249,11 @@ def get_plan_trees(data_dir, tscout_query_ids):
 
     query_id_to_plan_tree = dict()
 
-    for query_id, plan in query_id_to_plan.items():
-        plan_tree = PlanNode(query_id, plan["Plan"], is_root=True)
-        query_id_to_plan_tree[query_id] = plan_tree
+    for query_id, json_plan in query_id_to_plan.items():
+        set_node_ids(json_plan["Plan"])
+        plan_tree = PlanTree(query_id, json_plan["Plan"])
+        show_plan_tree(plan_tree)
+        # query_id_to_plan_tree[query_id] = plan_tree
 
     return query_id_to_plan_tree
 
@@ -261,6 +317,26 @@ def add_invocation_ids(unified_df):
     return unified_df
 
 
+def diff_costs(plan_tree, invocation_df):
+
+    diffed_rows = []
+
+    for idx, parent_row in invocation_df.iterrows():
+        parent_id = parent_row["plan_node_id"]
+        child_ids = plan_tree.parent_id_to_child_ids[parent_id]
+
+        for child_id in child_ids:
+            child_row = invocation_df[invocation_df["plan_node_id"] == child_id]
+            parent_row -= child_row
+
+        diffed_rows.append(parent_row)
+        print(f"index: {idx}, row: {parent_row}")
+
+    diffed = pd.DataFrame(diffed_rows)
+
+    return diffed
+
+
 if __name__ == "__main__":
     # get latest experiment
     experiment_list = sorted([exp_path.name for exp_path in TRAIN_DATA_ROOT.glob("*")])
@@ -272,14 +348,32 @@ if __name__ == "__main__":
     for mode in ["train"]:
         data_dir = DATA_ROOT / mode / experiment / "tpcc"
         tscout_dfs, unified_df, tscout_query_ids = load_tscout_data(data_dir)
-        query_id_to_plan_trees = get_plan_trees(data_dir, tscout_query_ids)
+        query_id_to_plan_tree = get_plan_trees(data_dir, tscout_query_ids)
+        query_invocation_ids = set(pd.unique(unified_df["query_invocation_id"]))
+        unified_df.set_index("query_invocation_id")
 
-        for query_id, plan_tree in query_id_to_plan_trees.items():
-            show_plan_tree(plan_tree)
+        print(f"Number of query invocation ids: {len(query_invocation_ids)}")
+
+        for invocation_id in query_invocation_ids:
+            invocation_df = unified_df.loc[invocation_id]
+            plan_tree = query_id_to_plan_tree[invocation_df.iloc[0]["query_id"]]
+
+            updated = diff_costs(plan_tree, invocation_df)
+
+            print(updated)
+            break
+        #
 
         print(unified_df.head(10))
 
         # then match every invocation to its plan_tree
+        # for each global_invocation_id
+        #   for each record
+        #     find the corresponding plan tree node
+        #     find
+
+        #
 
         # we want something like RID -> ChildRIDS
+
         # then we can go df[rid][diff_cols] -= df[child_rids][diff_cols]
