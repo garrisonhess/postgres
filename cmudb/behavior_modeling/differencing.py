@@ -164,37 +164,6 @@ def _set_node_ids(json_plan, next_node_id, depth):
     return next_node_id
 
 
-#     # prepare diffed data for integration into undiffed
-#     nondiff_cols = [col for col in diffed_cols.columns if col not in diff_cols]
-#     diffed_cols = diffed_cols.drop(nondiff_cols, axis=1)
-#     mapper = {col: f"diffed_{col}" for col in diffed_cols.columns}
-#     diffed_cols = diffed_cols.rename(columns=mapper)
-
-#     # add the new columns onto the undiffed data
-#     ou_to_diffed = {}
-
-#     for undiffed_df in tscout_dfs:
-#         undiffed_df = undiffed_df.set_index("rid")
-#         ou_name = undiffed_df.iloc[0]["ou_name"]
-
-#         if "ou_name" in undiffed_df.columns:
-#             undiffed_df = undiffed_df.drop(["ou_name"], axis=1)
-
-#         if ou_name in LEAF_NODES:
-#             continue
-
-#         # find the intersection of RIDs between diffed_cols and each df
-#         rids_to_update = undiffed_df.index.intersection(diffed_cols.index)
-#         assert undiffed_df.index.difference(diffed_cols.index).shape[0] == 0
-#         print(f"num records to update: {rids_to_update.shape[0]}")
-#         diffed_df = undiffed_df.join(diffed_cols, how="inner")
-#         ou_to_diffed[ou_name] = diffed_df
-
-#     for ou_name, diffed_df in ou_to_diffed.items():
-#         out_path = data_dir / f"{ou_name}.csv"
-#         diffed_df.to_csv(str(out_path), index=True)
-
-
 def get_plan_trees(data_dir, tscout_query_ids):
     plan_file_path = data_dir / "plan_file.csv"
     plan_df = pd.read_csv(plan_file_path)
@@ -243,17 +212,25 @@ def load_tscout_data(data_dir):
     unified_df = pd.concat(unified_dfs, axis=0)
     unified_df = unified_df.sort_values(by=["query_id", "start_time", "plan_node_id"], axis=0)
     unified_df.set_index("rid", drop=False, inplace=True)
-
     unified_df = add_invocation_ids(unified_df)
-    unified_df = filter_broken(unified_df)
+    unified_df = filter_incomplete(unified_df)
+
+    # remove everything not in unified dfs
+    unified_df.set_index("rid", drop=False, inplace=True)
+    final_rids = unified_df["rid"].index
+
+    for i in range(len(tscout_dfs)):
+        tscout_dfs[i] = tscout_dfs[i].set_index("rid", drop=False)
+        new_index = final_rids.intersection(tscout_dfs[i].index)
+        tscout_dfs[i] = tscout_dfs[i].loc[new_index]
 
     if DEBUG:
-        unified_df.to_csv("unified_df.csv")
+        unified_df.to_csv("unified_df.csv", index=False)
 
     return tscout_dfs, unified_df
 
 
-def filter_broken(unified_df):
+def filter_incomplete(unified_df):
     query_id_to_node_ids = defaultdict(set)
     inv_id_to_node_ids = defaultdict(set)
 
@@ -348,7 +325,35 @@ def diff_costs(plan_tree, invocation_df):
     return rid_to_diffed_costs
 
 
-if __name__ == "__main__":
+def save_results(data_dir, tscout_dfs, diffed_cols):
+    # # prepare diffed data for integration into undiffed
+    # nondiff_cols = [col for col in diffed_cols.columns if col not in diff_cols]
+    # diffed_cols = diffed_cols.drop(nondiff_cols, axis=1)
+    # mapper = {col: f"diffed_{col}" for col in diffed_cols.columns}
+    # diffed_cols = diffed_cols.rename(columns=mapper)
+
+    # add the new columns onto the undiffed data
+    for undiffed_df in tscout_dfs:
+        undiffed_df = undiffed_df.set_index("rid")
+        ou_name = undiffed_df.iloc[0]["ou_name"]
+
+        if "ou_name" in undiffed_df.columns:
+            undiffed_df = undiffed_df.drop(["ou_name"], axis=1)
+
+        # find the intersection of RIDs between diffed_cols and each df
+        rids_to_update = undiffed_df.index.intersection(diffed_cols.index)
+        # assert undiffed_df.index.difference(diffed_cols.index).shape[0] == 0
+        print(f"num records to update: {rids_to_update.shape[0]}")
+
+        if rids_to_update.shape[0] > 0:
+            diffed_df = undiffed_df.join(diffed_cols, how="inner")
+        else:
+            diffed_df = undiffed_df
+
+        diffed_df.to_csv(f"{data_dir}/diffed_{ou_name}.csv", index=True)
+
+
+def run_differencing():
     # get latest experiment
     experiment_list = sorted([exp_path.name for exp_path in TRAIN_DATA_ROOT.glob("*")])
     assert len(experiment_list) > 0, "No experiments found"
@@ -360,29 +365,35 @@ if __name__ == "__main__":
         data_dir = DATA_ROOT / mode / experiment / "tpcc"
         tscout_dfs, unified_df = load_tscout_data(data_dir)
         query_id_to_plan_tree = get_plan_trees(data_dir, pd.unique(unified_df["query_id"]))
-
         unified_df.set_index("query_id", drop=False, inplace=True)
+        rid_to_diffed_costs = dict()
 
-        for query_id in tqdm.tqdm(pd.unique(unified_df["query_id"])):
-            query_invocations = unified_df.loc[query_id]
-            query_invocation_ids = set(pd.unique(query_invocations["query_invocation_id"]))
-            # print(f"Query ID: {query_id}, Number of query invocation ids: {len(query_invocation_ids)}")
-            query_invocations.set_index("query_invocation_id", drop=False, inplace=True)
+        for query_id in tqdm(pd.unique(unified_df["query_id"])):
             plan_tree = query_id_to_plan_tree[query_id]
 
             if len(plan_tree.root.plans) > 0:
-                # show_plan_tree(plan_tree)
+                query_invocations = unified_df.loc[query_id]
+                query_invocation_ids = set(pd.unique(query_invocations["query_invocation_id"]))
+                print(f"Query ID: {query_id}, Number of query invocation ids: {len(query_invocation_ids)}")
+                query_invocations.set_index("query_invocation_id", drop=False, inplace=True)
 
                 for invocation_id in query_invocation_ids:
                     invocation_df = query_invocations.loc[invocation_id]
+                    rid_to_diffed_costs = diff_costs(plan_tree, invocation_df)
+                    for k, v in rid_to_diffed_costs.items():
+                        rid_to_diffed_costs[k] = v
 
-                    try:
-                        updated = diff_costs(plan_tree, invocation_df)
-                    # print(updated)
-                    except Exception as e:
-                        print(f"query_id: {query_id}, invocation_id: {invocation_id}")
-                        print(f"invocation_df: {invocation_df}")
-                        print(e)
-                        exit()
+        records = []
+        for rid, diffed_costs in rid_to_diffed_costs.items():
+            record = [rid] + diffed_costs.tolist()
+            records.append(record)
 
-                    # break
+        diffed_cols = pd.DataFrame(records, columns=["rid"] + diff_cols)
+        diffed_cols.set_index("rid", drop=False, inplace=True)
+        print(diffed_cols.head(1))
+
+        save_results(data_dir, tscout_dfs, diffed_cols)
+
+
+if __name__ == "__main__":
+    run_differencing()
