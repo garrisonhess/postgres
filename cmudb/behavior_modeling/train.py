@@ -10,13 +10,10 @@ import yaml
 import numpy as np
 import pandas as pd
 import pydotplus
-from config import (BENCH_DBS, EVAL_DATA_ROOT, MODEL_CONFIG_DIR, MODEL_DIR,
-                    OU_NAMES, TRAIN_DATA_ROOT, logger)
+from config import BENCH_DBS, EVAL_DATA_ROOT, MODEL_CONFIG_DIR, MODEL_DIR, OU_NAMES, TRAIN_DATA_ROOT, logger
 from model import BehaviorModel
 from sklearn import tree
-from sklearn.metrics import (mean_absolute_error,
-                             mean_absolute_percentage_error,
-                             mean_squared_error, r2_score)
+from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, mean_squared_error, r2_score
 
 BASE_TARGET_COLS = [
     "cpu_cycles",

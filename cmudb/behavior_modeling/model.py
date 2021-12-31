@@ -6,9 +6,14 @@ import numpy as np
 from config import METHODS, MODEL_DIR
 from lightgbm import LGBMRegressor
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import (ElasticNet, HuberRegressor, Lasso,
-                                  LinearRegression, MultiTaskElasticNet,
-                                  MultiTaskLasso)
+from sklearn.linear_model import (
+    ElasticNet,
+    HuberRegressor,
+    Lasso,
+    LinearRegression,
+    MultiTaskElasticNet,
+    MultiTaskLasso,
+)
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import RobustScaler, StandardScaler

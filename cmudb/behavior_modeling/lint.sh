@@ -1,5 +1,8 @@
 #!/bin/bash
 
-black .
+black *.py
 isort *.py
-flake8 .
+flake8 *.py
+mypy *.py
+# bandit *.py
+pylint *.py

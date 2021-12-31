@@ -1,8 +1,57 @@
 [tool.black]
 line-length = 120
+target_version = ["py39"]
 
 [tool.isort]
 profile = "black"
 skip-gitignore = true
 line-length = 120
 multi-line-output = 3
+include_trailing_comma = true
+combine_as_imports = true
+python_version = "3.9"
+
+[tool.mypy]
+# Basic mypy configuration.
+python_version = "3.9"
+show_error_codes = true
+follow_imports = "silent"
+explicit_package_bases = true
+namespace_packages = true
+pretty = true
+strict_optional = true
+check_untyped_defs = true
+
+# Lint rules.
+allow_redefinition = true
+disallow_any_generics = true
+disallow_incomplete_defs = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_untyped_defs = true
+no_implicit_reexport = true
+no_implicit_optional = true
+strict_equality = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unused_ignores = true
+warn_unused_configs = true
+warn_unreachable = true
+
+[tool.pylint.'MASTER']
+jobs = 4
+
+[tool.pylint.'TYPECHECK']
+contextmanager-decorators=['contextlib.contextmanager']
+ignore-mixin-members=['yes']
+ignore-on-opaque-inference=['yes']
+ignored-classes=['optparse.Values,thread._local,_thread._local']
+missing-member-hint=['yes']
+missing-member-hint-distance=1
+missing-member-max-choices=1
+
+[tool.pylint.'FORMAT']
+max-line-length=120
+
+
