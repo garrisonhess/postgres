@@ -4,6 +4,5 @@ max-line-length = 120
 # All E class violations are “errors” reported by pycodestyle
 # All F class violations are reported by pyflakes
 # All W class violations are “warnings” reported by pycodestyle
-# All B class violations are potential bugs report by bugbear
 select = C,E,F,W,B
 extend-ignore = E203, E501

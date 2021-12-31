@@ -3,7 +3,6 @@
 import pickle
 
 import numpy as np
-from config import METHODS, MODEL_DIR
 from lightgbm import LGBMRegressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import (
@@ -18,6 +17,8 @@ from sklearn.multioutput import MultiOutputRegressor
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import RobustScaler, StandardScaler
 from sklearn.tree import DecisionTreeRegressor
+
+from config import METHODS, MODEL_DIR
 
 
 def get_model(method, config):

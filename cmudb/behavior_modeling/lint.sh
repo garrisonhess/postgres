@@ -3,6 +3,5 @@
 black *.py
 isort *.py
 flake8 *.py
-mypy *.py
-# bandit *.py
-pylint *.py
+mypy differencing.py
+# pylint differencing.py

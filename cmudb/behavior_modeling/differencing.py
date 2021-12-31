@@ -6,13 +6,15 @@ import shutil
 import uuid
 from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
-from config import DATA_ROOT, TRAIN_DATA_ROOT
 from numpy import ndarray
 from pandas import DataFrame, Index
 from tqdm import tqdm
+
+from config import DATA_ROOT, TRAIN_DATA_ROOT
 
 LEAF_NODES: set[str] = {"ExecIndexScan", "ExecSeqScan", "ExecIndexOnlyScan", "ExecResult"}
 
@@ -89,25 +91,14 @@ DEBUG: bool = True
 
 
 class PlanTree:
-    def __init__(self, query_id: str, json_plan: dict):
+    def __init__(self, query_id: str, json_plan: dict[str, Any]):
         self.query_id: str = query_id
-        self.json_plan: dict = json_plan
         self.root: PlanNode = PlanNode(json_plan)
-        self.parent_id_to_child_ids: dict[int, int] = build_id_map(self.root)
-
-
-def build_id_map(root: PlanTree) -> dict[int, int]:
-    map: dict[int, int] = dict()
-    map[root.plan_node_id] = [child.plan_node_id for child in root.plans]
-
-    for child in root.plans:
-        _build_id_map(child, map)
-
-    return map
+        self.parent_id_to_child_ids: dict[int, list[int]] = build_id_map(self.root)
 
 
 class PlanNode:
-    def __init__(self, json_plan: dict):
+    def __init__(self, json_plan: dict[str, Any]):
         self.node_type: str = json_plan["Node Type"]
         self.startup_cost: float = json_plan["Startup Cost"]
         self.total_cost: float = json_plan["Total Cost"]
@@ -117,12 +108,22 @@ class PlanNode:
             [PlanNode(child_plan) for child_plan in json_plan["Plans"]] if "Plans" in json_plan else []
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         indent = ">" * (self.depth + 1)  # incremented so we always prefix with >
         return f"{indent} type: {self.node_type}, total_cost: {self.total_cost}, node_id: {self.plan_node_id}, depth: {self.depth}"
 
 
-def _build_id_map(node: PlanNode, map: dict[int, int]) -> None:
+def build_id_map(root: PlanNode) -> dict[int, list[int]]:
+    map: dict[int, list[int]] = dict()
+    map[root.plan_node_id] = [child.plan_node_id for child in root.plans]
+
+    for child in root.plans:
+        _build_id_map(child, map)
+
+    return map
+
+
+def _build_id_map(node: PlanNode, map: dict[int, list[int]]) -> None:
     map[node.plan_node_id] = [child.plan_node_id for child in node.plans]
     for child in node.plans:
         _build_id_map(child, map)
@@ -144,7 +145,7 @@ def show_plan_node(plan_node: PlanNode) -> None:
         show_plan_node(child)
 
 
-def set_node_ids(json_plan: dict) -> None:
+def set_node_ids(json_plan: dict[str, Any]) -> None:
     json_plan["plan_node_id"] = 0
     json_plan["depth"] = 0
     next_node_id: int = 1
@@ -154,7 +155,7 @@ def set_node_ids(json_plan: dict) -> None:
             next_node_id = _set_node_ids(child, next_node_id, 1)
 
 
-def _set_node_ids(json_plan: dict, next_node_id: int, depth: int) -> int:
+def _set_node_ids(json_plan: dict[str, Any], next_node_id: int, depth: int) -> int:
     json_plan["plan_node_id"] = next_node_id
     json_plan["depth"] = depth
     next_node_id += 1
@@ -170,7 +171,7 @@ def _set_node_ids(json_plan: dict, next_node_id: int, depth: int) -> int:
 def get_plan_trees(data_dir: Path, tscout_query_ids: set[str]) -> dict[str, PlanTree]:
     plan_file_path: Path = data_dir / "plan_file.csv"
     cols = ["queryid", "planid", "plan"]
-    dtypes: dict = {"queryid": np.int64, "planid": int, "plan": str}
+    dtypes: dict[str, Any] = {"queryid": np.int64, "planid": int, "plan": str}
     plan_df: DataFrame = pd.read_csv(plan_file_path, usecols=cols, dtype=dtypes)
     plan_df["queryid"] = plan_df["queryid"].astype(np.uint64).astype(str)
 
@@ -182,7 +183,7 @@ def get_plan_trees(data_dir: Path, tscout_query_ids: set[str]) -> dict[str, Plan
 
         if query_id in tscout_query_ids:
             plan: str = plan_df.iloc[i]["plan"]
-            json_plan: dict = json.loads(plan)
+            json_plan: dict[str, Any] = json.loads(plan)
             json_plan = json_plan["Plan"]
             set_node_ids(json_plan)
             query_id_to_plan_tree[query_id] = PlanTree(query_id, json_plan)
@@ -203,7 +204,7 @@ def load_tscout_data(data_dir: Path) -> tuple[list[DataFrame], DataFrame]:
             for mapper_value in remap_schema:
                 if mapper_value in col:
                     mapper[col] = mapper_value
-        df: DataFrame = df.rename(columns=mapper)
+        df = df.rename(columns=mapper)
         rids: list[str] = [uuid.uuid4().hex for _ in range(df.shape[0])]
         df["rid"] = rids
         df["ou_name"] = ou_name
@@ -222,8 +223,8 @@ def load_tscout_data(data_dir: Path) -> tuple[list[DataFrame], DataFrame]:
 
     # remove everything not in unified dfs
     unified_df.set_index("rid", drop=False, inplace=True)
-    rids: list[str] = unified_df["rid"].values.tolist()
-    rid_index: Index[str] = Index(data=rids, dtype=str)
+    final_rids: list[str] = unified_df["rid"].values.tolist()
+    rid_index: Index[str] = Index(data=final_rids, dtype=str)
 
     for i in range(len(tscout_dfs)):
         tscout_dfs[i] = tscout_dfs[i].set_index("rid", drop=False)
@@ -237,8 +238,8 @@ def load_tscout_data(data_dir: Path) -> tuple[list[DataFrame], DataFrame]:
 
 
 def filter_incomplete(data_dir: Path, unified_df: DataFrame) -> DataFrame:
-    query_id_to_node_ids: defaultdict[set] = defaultdict(set)
-    inv_id_to_node_ids: defaultdict[set] = defaultdict(set)
+    query_id_to_node_ids: defaultdict[str, set[int]] = defaultdict(set)
+    inv_id_to_node_ids: defaultdict[tuple[str, int], set[int]] = defaultdict(set)
 
     for (_, row) in unified_df.iterrows():
         query_id: str = row["query_id"]
@@ -256,7 +257,7 @@ def filter_incomplete(data_dir: Path, unified_df: DataFrame) -> DataFrame:
         ]
 
         for inv_id in matched_inv_ids:
-            actual_ids: list[int] = inv_id_to_node_ids[(query_id, inv_id)]
+            actual_ids: set[int] = inv_id_to_node_ids[(query_id, inv_id)]
             symdiff: set[int] = expected_ids.symmetric_difference(actual_ids)
 
             if len(symdiff) > 0:
@@ -282,7 +283,9 @@ def add_invocation_ids(data_dir: Path, unified_df: DataFrame) -> DataFrame:
     query_invocation_ids: list[int] = []
     global_invocation_ids: list[int] = []
     broken_rids: list[int] = list()
-    invocation_data: list = unified_df[["rid", "query_id", "plan_node_id", "start_time", "end_time"]].values.tolist()
+    invocation_data: list[Any] = unified_df[
+        ["rid", "query_id", "plan_node_id", "start_time", "end_time"]
+    ].values.tolist()
 
     for rid, query_id, plan_node_id, curr_start, curr_end in invocation_data:
         if query_id != prev_query_id:
@@ -318,18 +321,18 @@ def add_invocation_ids(data_dir: Path, unified_df: DataFrame) -> DataFrame:
     return unified_df
 
 
-def diff_costs(plan_tree: PlanTree, invocation_df: DataFrame) -> dict[str, ndarray]:
-    rid_to_diffed_costs: dict[str, ndarray] = dict()
+def diff_costs(plan_tree: PlanTree, invocation_df: DataFrame) -> dict[str, ndarray[Any, Any]]:
+    rid_to_diffed_costs: dict[str, ndarray[Any, Any]] = dict()
     invocation_df.set_index("plan_node_id", drop=False, inplace=True)
 
     for parent_id, parent_row in invocation_df.iterrows():
         parent_rid: str = parent_row["rid"]
-        child_ids: ndarray = plan_tree.parent_id_to_child_ids[parent_id]
-        diffed_costs: ndarray = parent_row[diff_cols].values
+        child_ids: list[int] = plan_tree.parent_id_to_child_ids[parent_id]
+        diffed_costs: ndarray[Any, Any] = parent_row[diff_cols].values
 
         for child_id in child_ids:
-            child_costs: ndarray = invocation_df.loc[child_id][diff_cols]
-            diffed_costs -= child_costs.values
+            child_costs: ndarray[Any, Any] = invocation_df.loc[child_id][diff_cols].values
+            diffed_costs -= child_costs
 
         rid_to_diffed_costs[parent_rid] = diffed_costs
 
@@ -360,7 +363,7 @@ def save_results(data_dir: Path, tscout_dfs: list[DataFrame], diffed_cols: DataF
 
 def verify_ids(unified_df: DataFrame) -> None:
     inv_to_query_id: dict[int, str] = dict()
-    inv_to_node_ids: dict[int, set(int)] = dict()
+    inv_to_node_ids: dict[int, set[int]] = dict()
 
     df: DataFrame = unified_df[["query_id", "global_invocation_id", "plan_node_id"]].values.tolist()
     for query_id, inv_id, node_id in df:
@@ -398,9 +401,9 @@ def run_differencing(experiment: str) -> None:
 
         tscout_dfs, unified_df = load_tscout_data(data_dir)
         all_query_ids: set[str] = set(pd.unique(unified_df["query_id"]))
-        query_id_to_plan_tree = get_plan_trees(data_dir, all_query_ids)
+        query_id_to_plan_tree: dict[str, PlanTree] = get_plan_trees(data_dir, all_query_ids)
         unified_df.set_index("query_id", drop=False, inplace=True)
-        rid_to_diffed_costs: dict[str, ndarray] = dict()
+        rid_to_diffed_costs: dict[str, ndarray[Any, Any]] = dict()
 
         query_ids: set[str] = set(unified_df["query_id"].values.tolist())
 
@@ -419,9 +422,9 @@ def run_differencing(experiment: str) -> None:
                     for k, v in rid_to_diffed_costs.items():
                         rid_to_diffed_costs[k] = v
 
-        records: list[list] = []
+        records: list[list[Any]] = []
         for rid, diffed_costs in rid_to_diffed_costs.items():
-            record: list = [rid] + diffed_costs.tolist()
+            record: list[Any] = [rid] + diffed_costs.tolist()
             records.append(record)
 
         diffed_cols: DataFrame = DataFrame(records, columns=["rid"] + diff_cols)
@@ -434,11 +437,10 @@ def run_differencing(experiment: str) -> None:
 
 if __name__ == "__main__":
     # get latest experiment and run differencing
-    experiment_list: list[Path] = sorted([exp_path.name for exp_path in TRAIN_DATA_ROOT.glob("*")])
+    experiment_list: list[str] = sorted([exp_path.name for exp_path in TRAIN_DATA_ROOT.glob("*")])
     if len(experiment_list) == 0:
         raise ValueError("No experiments found")
 
-    variable: str = 1
     experiment: str = experiment_list[-1]
     print(f"Differencing latest experiment: {experiment}")
     run_differencing(experiment)

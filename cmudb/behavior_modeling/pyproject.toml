@@ -4,23 +4,22 @@ target_version = ["py39"]
 
 [tool.isort]
 profile = "black"
-skip-gitignore = true
-line-length = 120
-multi-line-output = 3
 include_trailing_comma = true
 combine_as_imports = true
-python_version = "3.9"
 
 [tool.mypy]
 # Basic mypy configuration.
-python_version = "3.9"
-show_error_codes = true
-follow_imports = "silent"
+check_untyped_defs = true
 explicit_package_bases = true
+follow_imports = "silent"
+ignore_missing_imports = true
 namespace_packages = true
 pretty = true
+python_version = "3.9"
+show_error_codes = true
 strict_optional = true
-check_untyped_defs = true
+plugins = "numpy.typing.mypy_plugin"
+
 
 # Lint rules.
 allow_redefinition = true
@@ -39,17 +38,9 @@ warn_unused_ignores = true
 warn_unused_configs = true
 warn_unreachable = true
 
+
 [tool.pylint.'MASTER']
 jobs = 4
-
-[tool.pylint.'TYPECHECK']
-contextmanager-decorators=['contextlib.contextmanager']
-ignore-mixin-members=['yes']
-ignore-on-opaque-inference=['yes']
-ignored-classes=['optparse.Values,thread._local,_thread._local']
-missing-member-hint=['yes']
-missing-member-hint-distance=1
-missing-member-max-choices=1
 
 [tool.pylint.'FORMAT']
 max-line-length=120

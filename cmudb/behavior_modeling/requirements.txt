@@ -7,10 +7,9 @@ pandas
 sklearn>=1.0.0
 pydotplus
 lightgbm
+dataclasses
 isort
 black
 flake8
-dataclasses
-bandit
 pylint
 mypy
