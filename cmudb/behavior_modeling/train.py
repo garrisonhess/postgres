@@ -4,11 +4,15 @@ import argparse
 import itertools
 import os
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import pydotplus
 import yaml
+from numpy.typing import NDArray
+from pandas import DataFrame
 from sklearn import tree
 from sklearn.metrics import (
     mean_absolute_error,
@@ -20,6 +24,7 @@ from sklearn.metrics import (
 from config import (
     BENCH_DBS,
     EVAL_DATA_ROOT,
+    LEAF_NODES,
     MODEL_CONFIG_DIR,
     MODEL_DIR,
     OU_NAMES,
@@ -59,7 +64,7 @@ DIFF_TARGET_COLS = [
 ALL_TARGET_COLS = BASE_TARGET_COLS + DIFF_TARGET_COLS
 
 
-def evaluate(ou_model, X, y, output_dir, dataset, mode):
+def evaluate(ou_model, X, y, output_dir, dataset, mode) -> None:
     if mode != "train" and mode != "eval":
         raise ValueError(f"Invalid mode: {mode}")
 
@@ -112,9 +117,9 @@ def evaluate(ou_model, X, y, output_dir, dataset, mode):
         eval_file.write("======================== END SUMMARY ========================\n")
 
 
-def load_data(data_dir):
+def load_data(data_dir: Path) -> dict[str, DataFrame]:
     result_paths = [fp for fp in data_dir.glob("*.csv") if os.stat(fp).st_size > 0]
-    ou_name_to_df = dict()
+    ou_name_to_df = {}
 
     for ou_name in OU_NAMES:
         ou_results = [fp for fp in result_paths if fp.name.startswith(ou_name)]
@@ -128,11 +133,10 @@ def load_data(data_dir):
     return ou_name_to_df
 
 
-def prep_train_data(df, feat_diff, target_diff):
+def prep_train_data(ou_name: str, df: DataFrame, feat_diff: bool, target_diff: bool):
+    cols_to_remove: list[str] = ["start_time", "end_time", "cpu_id", "query_id", "rid", "plan_node_id"]
 
-    cols_to_remove = ["start_time", "end_time", "cpu_id", "query_id", "rid", "plan_node_id"]
-
-    if target_diff:
+    if target_diff and ou_name not in LEAF_NODES:
         cols_to_remove += BASE_TARGET_COLS
     else:
         cols_to_remove += DIFF_TARGET_COLS
@@ -150,12 +154,16 @@ def prep_train_data(df, feat_diff, target_diff):
         logger.info(f"Dropped zero-variance columns: {cols_to_remove}")
         logger.info(f"Num Remaining: {len(df.columns)}, Num Removed {len(cols_to_remove)}")
 
-    if target_diff:
+    if target_diff and ou_name not in LEAF_NODES:
+        print(f"using differenced targets for: {ou_name}")
         target_cols = [col for col in df.columns if col in DIFF_TARGET_COLS]
     else:
+        print(f"using non-diff targets for {ou_name}")
+        print(f"all columns: {df.columns}")
         target_cols = [col for col in df.columns if col in BASE_TARGET_COLS]
+        print(f"target_columns: {target_cols}")
 
-    feat_cols = [col for col in df.columns if col not in ALL_TARGET_COLS]
+    feat_cols: list[str] = [col for col in df.columns if col not in ALL_TARGET_COLS]
 
     if not feat_diff:
         feat_cols = [col for col in feat_cols if not col.startswith("diffed")]
@@ -166,7 +174,7 @@ def prep_train_data(df, feat_diff, target_diff):
     return feat_cols, target_cols, X, y
 
 
-def prep_eval_data(df, feat_cols, target_cols):
+def prep_eval_data(df: pd.DataFrame, feat_cols: list[str], target_cols: list[str]):
     X = df[feat_cols].values
     y = df[target_cols].values
 
@@ -207,8 +215,8 @@ if __name__ == "__main__":
         experiment_name = experiment_list[-1]
         logger.warning(f"Experiment name was not provided, using experiment: {experiment_name}")
 
-    training_data_dir = TRAIN_DATA_ROOT / experiment_name / train_bench_db
-    eval_data_dir = EVAL_DATA_ROOT / experiment_name / eval_bench_db
+    training_data_dir = TRAIN_DATA_ROOT / experiment_name / train_bench_db / "differenced"
+    eval_data_dir = EVAL_DATA_ROOT / experiment_name / eval_bench_db / "differenced"
     logger.warning(f"eval data dir: {eval_data_dir}")
     if not training_data_dir.exists():
         raise ValueError(f"Train Benchmark DB {train_bench_db} not found in experiment: {experiment_name}")
@@ -222,10 +230,16 @@ if __name__ == "__main__":
 
     for ou_name in train_ou_to_df.keys():
         logger.warning(f"Begin Training OU: {ou_name}")
-        feat_cols, target_cols, X_train, y_train = prep_train_data(train_ou_to_df[ou_name], feat_diff, target_diff)
+        feat_cols, target_cols, X_train, y_train = prep_train_data(
+            ou_name, train_ou_to_df[ou_name], feat_diff, target_diff
+        )
         ou_model_name = f"{ou_name}_{base_model_name}"
 
         if X_train.shape[1] == 0 or y_train.shape[1] == 0:
+            print(feat_cols)
+            print(target_cols)
+            print(X_train.shape)
+            print(y_train.shape)
             logger.warning(f"{ou_name} has no valid training data, skipping")
             continue
 

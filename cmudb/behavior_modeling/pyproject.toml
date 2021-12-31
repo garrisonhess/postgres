@@ -48,7 +48,6 @@ max-line-length=120
 [tool.pylint.messages_control]
 disable = [
     # temporary disables to fix
-    "unsubscriptable-object",
     "import-error", 
 
     # Disable too many and too few checks.

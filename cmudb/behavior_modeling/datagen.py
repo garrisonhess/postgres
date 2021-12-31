@@ -166,10 +166,13 @@ def pg_prewarm(bench_db):
 def init_tscout(results_dir):
     try:
         os.chdir(tscout_dir)
+
+        tscout_results_dir = results_dir / "tscout"
+        tscout_results_dir.mkdir(exist_ok=True)
         # Make sure we're authed with sudo before running tscout in background
         Popen(args=["sudo pwd"], shell=True).wait()
         tscout_proc = Popen(
-            args=[f"sudo python3 tscout.py `pgrep -ox postgres` --outdir {results_dir} &"],
+            args=[f"sudo python3 tscout.py `pgrep -ox postgres` --outdir {tscout_results_dir} &"],
             shell=True,
         )
     except Exception as err:

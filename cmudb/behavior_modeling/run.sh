@@ -4,7 +4,7 @@
 ./datagen.py
 
 # perform differencing
-./differencing.py 
+./plan_diff.py 
 
 # train-evaluate-serialize models
 ./train.py --config_name nodiff

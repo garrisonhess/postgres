@@ -165,6 +165,8 @@ MODEL_CONFIG_DIR = MODELING_DIR / "config" / "modeling"
 MODEL_DIR = MODELING_DIR / "models"
 TRAIN_DATA_ROOT = DATA_ROOT / "train"
 EVAL_DATA_ROOT = DATA_ROOT / "eval"
+LEAF_NODES: set[str] = {"ExecIndexScan", "ExecSeqScan", "ExecIndexOnlyScan", "ExecResult"}
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
