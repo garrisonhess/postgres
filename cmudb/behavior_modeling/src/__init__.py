@@ -159,14 +159,29 @@ METHODS = [
     "elastic",
 ]
 
-DATA_ROOT = Path.home() / "postgres/cmudb/behavior_modeling/training_data"
+
+PG_DIR = Path.home() / "postgres"
+CMUDB_DIR = PG_DIR / "cmudb"
+TSCOUT_DIR = CMUDB_DIR / "tscout"
+BENCHBASE_DIR = Path.home() / "benchbase"
+BENCHBASE_SNAPSHOT_DIR = BENCHBASE_DIR / "benchbase-2021-SNAPSHOT"
+BENCHBASE_SNAPSHOT_PATH = BENCHBASE_DIR / "target" / "benchbase-2021-SNAPSHOT.zip"
+BEHAVIOR_MODELING_DIR = CMUDB_DIR / "behavior_modeling"
+PG_CONF_PATH = BEHAVIOR_MODELING_DIR / "config/datagen/postgres/postgresql.conf"
+CLEANUP_SCRIPT_PATH = BEHAVIOR_MODELING_DIR / "src/datagen/cleanup.py"
+SQLSMITH_DIR = Path.home() / "sqlsmith"
+DATA_ROOT = Path.home() / "postgres/cmudb/behavior_modeling/data/training_data"
 MODELING_DIR = Path.home() / "postgres/cmudb/behavior_modeling"
 MODEL_CONFIG_DIR = MODELING_DIR / "config" / "modeling"
-MODEL_DIR = MODELING_DIR / "models"
-TRAIN_DATA_ROOT = DATA_ROOT / "train"
-EVAL_DATA_ROOT = DATA_ROOT / "eval"
+MODEL_DIR = MODELING_DIR / "/data/models"
+TRAIN_DATA_ROOT = DATA_ROOT / "/data/train"
+EVAL_DATA_ROOT = DATA_ROOT / "/data/eval"
 LEAF_NODES: set[str] = {"ExecIndexScan", "ExecSeqScan", "ExecIndexOnlyScan", "ExecResult"}
 
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+def get_logger():
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    return logger

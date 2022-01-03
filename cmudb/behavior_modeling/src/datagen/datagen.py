@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-
-import argparse
-import logging
 import os
 import shutil
 import time
@@ -12,27 +8,28 @@ from subprocess import Popen
 import psutil
 import yaml
 
-from config import BENCH_DBS, BENCH_TABLES, DATA_ROOT
-
-logger = logging.getLogger("datagen")
-logger.setLevel("INFO")
-pg_dir = Path.home() / "postgres"
-cmudb_dir = pg_dir / "cmudb"
-tscout_dir = cmudb_dir / "tscout"
-benchbase_dir = Path.home() / "benchbase"
-benchbase_snapshot_dir = benchbase_dir / "benchbase-2021-SNAPSHOT"
-benchbase_snapshot_path = benchbase_dir / "target" / "benchbase-2021-SNAPSHOT.zip"
-behavior_modeling_dir = cmudb_dir / "behavior_modeling"
-pg_conf_path = behavior_modeling_dir / "config/datagen/postgres/postgresql.conf"
-cleanup_script_path = behavior_modeling_dir / "cleanup.py"
-sqlsmith_dir = Path.home() / "sqlsmith"
+from src import (
+    BEHAVIOR_MODELING_DIR,
+    BENCH_DBS,
+    BENCH_TABLES,
+    BENCHBASE_DIR,
+    BENCHBASE_SNAPSHOT_DIR,
+    BENCHBASE_SNAPSHOT_PATH,
+    CLEANUP_SCRIPT_PATH,
+    DATA_ROOT,
+    PG_CONF_PATH,
+    PG_DIR,
+    SQLSMITH_DIR,
+    TSCOUT_DIR,
+    get_logger,
+)
 
 
 def build_pg():
     """Build Postgres (and extensions)"""
 
     try:
-        os.chdir(pg_dir)
+        os.chdir(PG_DIR)
         Popen(args=["./cmudb/build/configure.sh release"], shell=True).wait()
         Popen(["make clean -s"], shell=True).wait()
         Popen(args=["make -j world-bin -s"], shell=True).wait()
@@ -63,16 +60,16 @@ def check_orphans():
     assert len(tscout_procs) == 0, f"Found active tscout processes from previous runs: {tscout_procs}"
 
 
-def init_pg():
+def init_pg(auto_explain, stat_statements, store_plans):
     try:
-        os.chdir(pg_dir)
+        os.chdir(PG_DIR)
 
         # initialize postgres for benchbase execution
         shutil.rmtree("data")
 
         Path("data").mkdir(parents=True, exist_ok=True)
         Popen(args=["./build/bin/pg_ctl initdb -D data"], shell=True).wait()
-        shutil.copy(str(pg_conf_path), "./data/postgresql.conf")
+        shutil.copy(str(PG_CONF_PATH), "./data/postgresql.conf")
 
         Popen(
             args=["""./build/bin/pg_ctl -D data -o "-W 2" start"""],
@@ -99,18 +96,18 @@ def init_pg():
             shell=True,
         ).wait()
 
-        if config["auto_explain"]:
+        if auto_explain:
             Popen(
                 args=['''./build/bin/psql -d benchbase -c "ALTER SYSTEM SET auto_explain.log_min_duration = 0;"'''],
                 shell=True,
             ).wait()
             Popen(args=["""./build/bin/pg_ctl -D data reload"""], shell=True).wait()
 
-        if config["pg_stat_statements"]:
+        if stat_statements:
             Popen(
                 args=['''./build/bin/psql -d 'benchbase' -c "CREATE EXTENSION pg_stat_statements;"'''], shell=True
             ).wait()
-        if config["pg_store_plans"]:
+        if store_plans:
             Popen(args=['''./build/bin/psql -d 'benchbase' -c "CREATE EXTENSION pg_store_plans;"'''], shell=True).wait()
 
         # Turn off pager
@@ -125,13 +122,13 @@ def init_pg():
 
 def pg_analyze(bench_db):
     try:
-        os.chdir(pg_dir)
+        os.chdir(PG_DIR)
 
         if bench_db not in BENCH_TABLES.keys():
             raise ValueError(f"Benchmark {bench_db} doesn't have tables setup yet.")
 
         for table in BENCH_TABLES[bench_db]:
-            logger.info(f"Analyzing table: {table}")
+            get_logger().info(f"Analyzing table: {table}")
             Popen(
                 args=[f"""./build/bin/psql -d benchbase -c 'ANALYZE VERBOSE {table};'"""],
                 shell=True,
@@ -144,7 +141,7 @@ def pg_prewarm(bench_db):
     """Prewarm Postgres so the buffer pool and OS page cache has the workload data available"""
 
     try:
-        os.chdir(pg_dir)
+        os.chdir(PG_DIR)
         Popen(
             args=['''./build/bin/psql -d benchbase -c "CREATE EXTENSION pg_prewarm"'''],
             shell=True,
@@ -154,7 +151,7 @@ def pg_prewarm(bench_db):
             raise ValueError(f"Benchmark {bench_db} doesn't have prewarm tables setup yet.")
 
         for table in BENCH_TABLES[bench_db]:
-            logger.info(f"Prewarming table: {table}")
+            get_logger().info(f"Prewarming table: {table}")
             Popen(
                 args=[f"""./build/bin/psql -d benchbase -c "select * from pg_prewarm('{table}')";"""],
                 shell=True,
@@ -165,7 +162,7 @@ def pg_prewarm(bench_db):
 
 def init_tscout(results_dir):
     try:
-        os.chdir(tscout_dir)
+        os.chdir(TSCOUT_DIR)
 
         tscout_results_dir = results_dir / "tscout"
         tscout_results_dir.mkdir(exist_ok=True)
@@ -183,35 +180,37 @@ def init_tscout(results_dir):
 
 
 def build_benchbase(benchbase_dir):
-    logger.info("Building Benchbase")
+    get_logger().info("Building Benchbase")
 
     try:
         os.chdir(benchbase_dir)
         Popen(args=["./mvnw clean package"], shell=True).wait()
 
         # TODO: resolve this in a cleaner way
-        if not os.path.exists(benchbase_snapshot_dir):
-            Popen(args=[f"unzip {benchbase_snapshot_path}"], shell=True).wait()
+        if not os.path.exists(BENCHBASE_SNAPSHOT_DIR):
+            Popen(args=[f"unzip {BENCHBASE_SNAPSHOT_PATH}"], shell=True).wait()
     except Exception as err:
         cleanup(err, terminate=True, message="Error building benchbase")
 
 
-def init_benchbase(bench_db):
+def init_benchbase(bench_db, benchbase_results_dir):
     """Initialize Benchbase and load benchmark data"""
+    logger = get_logger()
 
     try:
-        os.chdir(benchbase_dir)
-        if not os.path.exists(benchbase_snapshot_dir):
-            build_benchbase(benchbase_dir)
-        os.chdir(benchbase_snapshot_dir)
+        os.chdir(BENCHBASE_DIR)
+        if not os.path.exists(BENCHBASE_SNAPSHOT_DIR):
+            build_benchbase(BENCHBASE_DIR)
+        os.chdir(BENCHBASE_SNAPSHOT_DIR)
 
         # move runner config to benchbase and also save it in the output directory
-        input_cfg_path = behavior_modeling_dir / f"config/datagen/benchbase/{bench_db}_config.xml"
-        benchbase_cfg_path = benchbase_snapshot_dir / f"config/postgres/{bench_db}_config.xml"
+        input_cfg_path = BEHAVIOR_MODELING_DIR / f"config/datagen/benchbase/{bench_db}_config.xml"
+        benchbase_cfg_path = BENCHBASE_SNAPSHOT_DIR / f"config/postgres/{bench_db}_config.xml"
         shutil.copy(input_cfg_path, benchbase_cfg_path)
         shutil.copy(input_cfg_path, benchbase_results_dir)
 
         logger.info(f"Initializing Benchbase for DB: {bench_db}")
+
         benchbase_cmd = f"java -jar benchbase.jar -b {bench_db} -c config/postgres/{bench_db}_config.xml --create=true --load=true --execute=false"
         bbase_proc = Popen(args=[benchbase_cmd], shell=True)
         bbase_proc.wait()
@@ -222,14 +221,14 @@ def init_benchbase(bench_db):
         cleanup(err, terminate=True, message="Error initializing Benchbase")
 
 
-def exec_benchbase(bench_db):
-    psql_path = pg_dir / "./build/bin/psql"
+def exec_benchbase(bench_db, results_dir, benchbase_results_dir, config):
+    psql_path = PG_DIR / "./build/bin/psql"
 
     try:
-        os.chdir(benchbase_dir)
-        if not os.path.exists(benchbase_snapshot_dir):
-            build_benchbase(benchbase_dir)
-        os.chdir(benchbase_snapshot_dir)
+        os.chdir(BENCHBASE_DIR)
+        if not os.path.exists(BENCHBASE_SNAPSHOT_DIR):
+            build_benchbase(BENCHBASE_DIR)
+        os.chdir(BENCHBASE_SNAPSHOT_DIR)
 
         if config["pg_stat_statements"]:
             Popen(args=[f'''{psql_path} -d 'benchbase' -c "SELECT pg_stat_statements_reset();"'''], shell=True).wait()
@@ -263,7 +262,7 @@ def exec_benchbase(bench_db):
                 ).wait()
 
         # Move benchbase results to experiment results directory
-        shutil.move(str(benchbase_snapshot_dir / "results"), str(benchbase_results_dir))
+        shutil.move(str(BENCHBASE_SNAPSHOT_DIR / "results"), str(benchbase_results_dir))
         time.sleep(5)  # Allow TScout Collector to finish getting results
 
     except Exception as err:
@@ -273,6 +272,8 @@ def exec_benchbase(bench_db):
 def cleanup(err, terminate, message=""):
     """Clean up the TScout and Postgres processes after either a successful or failed run"""
 
+    logger = get_logger()
+
     if len(message) > 0:
         logger.error(message)
 
@@ -280,7 +281,7 @@ def cleanup(err, terminate, message=""):
         logger.error(f"Error: {err}")
 
     username = psutil.Process().username()
-    Popen(args=[f"sudo python3 {cleanup_script_path} --username {username}"], shell=True).wait()
+    Popen(args=[f"sudo python3 {CLEANUP_SCRIPT_PATH} --username {username}"], shell=True).wait()
     time.sleep(2)  # Allow TScout poison pills to propagate
 
     # Exit the program if the caller requested it (only happens on error)
@@ -291,7 +292,7 @@ def cleanup(err, terminate, message=""):
 def exec_sqlsmith(bench_db):
 
     try:
-        os.chdir(pg_dir)
+        os.chdir(PG_DIR)
         # Add SQLSmith user to benchbase DB with non-superuser privileges
         Popen(
             args=[
@@ -304,7 +305,7 @@ def exec_sqlsmith(bench_db):
             raise ValueError(f"Benchmark {bench_db} doesn't have tables setup yet.")
 
         for table in BENCH_TABLES[bench_db]:
-            logger.info(f"Granting SQLSmith permissions on table: {table}")
+            get_logger().info(f"Granting SQLSmith permissions on table: {table}")
             Popen(
                 args=[
                     f'''./build/bin/psql -d benchbase -c "GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO sqlsmith;"'''
@@ -312,29 +313,28 @@ def exec_sqlsmith(bench_db):
                 shell=True,
             ).wait()
 
-        os.chdir(sqlsmith_dir)
+        os.chdir(SQLSMITH_DIR)
         sqlsmith_cmd = """./sqlsmith --target="host=localhost port=5432 dbname=benchbase connect_timeout=10" --seed=42 --max-queries=10000 --exclude-catalog"""
         Popen(args=[sqlsmith_cmd], shell=True).wait()
     except Exception as err:
         cleanup(err, terminate=True, message="Error running SQLSmith")
 
 
-def run(bench_db, results_dir):
+def run(bench_db, results_dir, benchbase_results_dir, config):
     """Run an experiment"""
     assert results_dir.exists(), f"Results directory does not exist: {results_dir}"
-    logger.info(f"Running experiment: {experiment_name} with bench_db: {bench_db} and results_dir: {results_dir}")
 
     check_orphans()
 
-    init_pg()
-    init_benchbase(bench_db)
+    init_pg(config["auto_explain"], config["pg_stat_statements"], config["pg_store_plans"])
+    init_benchbase(bench_db, benchbase_results_dir)
 
     # reload config to make a new logfile
-    os.chdir(pg_dir)
+    os.chdir(PG_DIR)
     Popen(args=["./build/bin/pg_ctl stop -D data -m smart"], shell=True).wait()
 
     # remove pre-existing logs
-    for log_path in [fp for fp in (pg_dir / "data/log").glob("*") if fp.suffix in ["csv", "log"]]:
+    for log_path in [fp for fp in (PG_DIR / "data/log").glob("*") if fp.suffix in ["csv", "log"]]:
         log_path.unlink()
 
     Popen(args=["""./build/bin/pg_ctl -D data -o "-W 2" start"""], shell=True).wait()
@@ -344,29 +344,24 @@ def run(bench_db, results_dir):
         pg_prewarm(bench_db)
 
     tscout_proc = init_tscout(results_dir)
-    exec_benchbase(bench_db)
+    exec_benchbase(bench_db, benchbase_results_dir)
 
-    log_fps = list((pg_dir / "data/log").glob("*.log"))
-    assert len(log_fps) == 1, f"Expected 1 log file, found {len(log_fps)}"
+    log_fps = list((PG_DIR / "data/log").glob("*.log"))
+    assert len(log_fps) == 1, f"Expected 1 Postgres log file, found {len(log_fps)}, {log_fps}"
     shutil.move(str(log_fps[0]), str(results_dir))
     log_fps = list(results_dir.glob("*.log"))
-    assert len(log_fps) == 1, f"Expected 1 log file, found {len(log_fps)}"
+    assert len(log_fps) == 1, f"Expected 1 Result log file, found {len(log_fps)}, {log_fps}"
     log_fps[0].rename(results_dir / "pg_log.log")
 
     cleanup(err=None, terminate=False, message="Finished run")
     tscout_proc.wait()
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run an experiment with Postgres, Benchbase, and TScout")
-    parser.add_argument("--config", type=str, default="default")
-    args = parser.parse_args()
-    config_name = args.config
-
+def main(config_name):
     # Load datagen config
-    config_path = behavior_modeling_dir / f"config/datagen/{config_name}.yaml"
+    config_path = BEHAVIOR_MODELING_DIR / f"config/datagen/{config_name}.yaml"
     config = yaml.load(open(config_path, "r"), Loader=yaml.FullLoader)
-    logger.setLevel(config["log_level"])
+    logger = get_logger()
 
     # validate the benchmark databases from the config
     bench_dbs = config["bench_dbs"]
@@ -378,7 +373,7 @@ if __name__ == "__main__":
         build_pg()
 
     if config["build_bbase"]:
-        build_benchbase(benchbase_dir)
+        build_benchbase(BENCHBASE_DIR)
 
     # Setup experiment directory
     experiment_name = f"experiment-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
@@ -396,4 +391,7 @@ if __name__ == "__main__":
             Path(results_dir).mkdir()
             benchbase_results_dir = results_dir / "benchbase"
             Path(benchbase_results_dir).mkdir(exist_ok=True)
-            run(bench_db, results_dir)
+            logger.info(
+                f"Running experiment: {experiment_name} with bench_db: {bench_db} and results_dir: {results_dir}"
+            )
+            run(bench_db, results_dir, benchbase_results_dir, config)

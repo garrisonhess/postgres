@@ -5,13 +5,12 @@ import itertools
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import pandas as pd
 import pydotplus
 import yaml
-from numpy.typing import NDArray
+from model import BehaviorModel
 from pandas import DataFrame
 from sklearn import tree
 from sklearn.metrics import (
@@ -21,7 +20,7 @@ from sklearn.metrics import (
     r2_score,
 )
 
-from config import (
+from src.config import (
     BENCH_DBS,
     EVAL_DATA_ROOT,
     LEAF_NODES,
@@ -31,7 +30,6 @@ from config import (
     TRAIN_DATA_ROOT,
     logger,
 )
-from model import BehaviorModel
 
 BASE_TARGET_COLS = [
     "cpu_cycles",
@@ -158,10 +156,8 @@ def prep_train_data(ou_name: str, df: DataFrame, feat_diff: bool, target_diff: b
         print(f"using differenced targets for: {ou_name}")
         target_cols = [col for col in df.columns if col in DIFF_TARGET_COLS]
     else:
-        print(f"using non-diff targets for {ou_name}")
-        print(f"all columns: {df.columns}")
         target_cols = [col for col in df.columns if col in BASE_TARGET_COLS]
-        print(f"target_columns: {target_cols}")
+        print(f"using undiff targets for: {ou_name}.  target_cols: {target_cols}")
 
     feat_cols: list[str] = [col for col in df.columns if col not in ALL_TARGET_COLS]
 

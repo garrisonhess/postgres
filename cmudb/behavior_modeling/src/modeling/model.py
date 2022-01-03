@@ -18,7 +18,7 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import RobustScaler, StandardScaler
 from sklearn.tree import DecisionTreeRegressor
 
-from config import METHODS, MODEL_DIR
+from src.config import METHODS, MODEL_DIR
 
 
 def get_model(method, config):
