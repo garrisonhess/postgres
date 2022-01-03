@@ -1,4 +1,5 @@
 import logging
+from logging import Logger
 from pathlib import Path
 
 BENCH_DBS = [
@@ -179,7 +180,7 @@ EVAL_DATA_ROOT = DATA_ROOT / "/data/eval"
 LEAF_NODES: set[str] = {"ExecIndexScan", "ExecSeqScan", "ExecIndexOnlyScan", "ExecResult"}
 
 
-def get_logger():
+def get_logger() -> Logger:
 
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)

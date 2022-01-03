@@ -1,7 +1,5 @@
-/models/
-/training_data/
-/.mypy_cache/
-/*.csv
+.mypy_cache/
+*.csv
 build/
 dist/
 *.egg-info/
@@ -10,6 +8,7 @@ dist/
 __pycache__/
 *.so
 *~
+data/
 
 # due to using tox and pytest
 .tox

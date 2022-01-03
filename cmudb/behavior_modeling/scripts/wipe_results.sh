@@ -1,4 +1,4 @@
 #!/bin/bash
 
-rm -r training_data/*
-rm -rf models/*
+rm -r data/training_data/*
+rm -rf data/models/*

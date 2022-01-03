@@ -5,12 +5,14 @@ import itertools
 import os
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import pydotplus
 import yaml
 from model import BehaviorModel
+from numpy.typing import NDArray
 from pandas import DataFrame
 from sklearn import tree
 from sklearn.metrics import (
@@ -20,7 +22,7 @@ from sklearn.metrics import (
     r2_score,
 )
 
-from src.config import (
+from src import (
     BENCH_DBS,
     EVAL_DATA_ROOT,
     LEAF_NODES,
@@ -28,7 +30,7 @@ from src.config import (
     MODEL_DIR,
     OU_NAMES,
     TRAIN_DATA_ROOT,
-    logger,
+    get_logger,
 )
 
 BASE_TARGET_COLS = [
@@ -62,7 +64,9 @@ DIFF_TARGET_COLS = [
 ALL_TARGET_COLS = BASE_TARGET_COLS + DIFF_TARGET_COLS
 
 
-def evaluate(ou_model, X, y, output_dir, dataset, mode) -> None:
+def evaluate(
+    ou_model: BehaviorModel, X: NDArray[np.float32], y: NDArray[np.float32], output_dir: Path, dataset: str, mode: str
+) -> None:
     if mode != "train" and mode != "eval":
         raise ValueError(f"Invalid mode: {mode}")
 
@@ -79,7 +83,7 @@ def evaluate(ou_model, X, y, output_dir, dataset, mode) -> None:
 
     preds_path = output_dir / f"{ou_model.ou_name}_{ou_model.method}_{dataset}_{pretty_mode}_preds.csv"
     with open(preds_path, "w+") as preds_file:
-        temp = np.concatenate((X, y, y_pred), axis=1)
+        temp: NDArray[Any] = np.concatenate((X, y, y_pred), axis=1)  # type: ignore
         test_result_df = pd.DataFrame(temp, columns=feat_cols + target_cols + [f"pred_{col}" for col in target_cols])
         test_result_df[reordered_cols].to_csv(preds_file, float_format="%.1f", index=False)
 
@@ -116,8 +120,8 @@ def evaluate(ou_model, X, y, output_dir, dataset, mode) -> None:
 
 
 def load_data(data_dir: Path) -> dict[str, DataFrame]:
-    result_paths = [fp for fp in data_dir.glob("*.csv") if os.stat(fp).st_size > 0]
-    ou_name_to_df = {}
+    result_paths: list[Path] = [fp for fp in data_dir.glob("*.csv") if os.stat(fp).st_size > 0]
+    ou_name_to_df: dict[str, DataFrame] = {}
 
     for ou_name in OU_NAMES:
         ou_results = [fp for fp in result_paths if fp.name.startswith(ou_name)]
@@ -131,7 +135,9 @@ def load_data(data_dir: Path) -> dict[str, DataFrame]:
     return ou_name_to_df
 
 
-def prep_train_data(ou_name: str, df: DataFrame, feat_diff: bool, target_diff: bool):
+def prep_train_data(
+    ou_name: str, df: DataFrame, feat_diff: bool, target_diff: bool
+) -> tuple[list[str], list[str], NDArray[Any], NDArray[Any]]:
     cols_to_remove: list[str] = ["start_time", "end_time", "cpu_id", "query_id", "rid", "plan_node_id"]
 
     if target_diff and ou_name not in LEAF_NODES:
@@ -170,7 +176,9 @@ def prep_train_data(ou_name: str, df: DataFrame, feat_diff: bool, target_diff: b
     return feat_cols, target_cols, X, y
 
 
-def prep_eval_data(df: pd.DataFrame, feat_cols: list[str], target_cols: list[str]):
+def prep_eval_data(
+    df: pd.DataFrame, feat_cols: list[str], target_cols: list[str]
+) -> tuple[NDArray[np.float32], NDArray[np.float32]]:
     X = df[feat_cols].values
     y = df[target_cols].values
 
@@ -181,10 +189,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="OU Model Trainer")
     parser.add_argument("--config_name", type=str, default="default")
     args = parser.parse_args()
-    config_name = args.config_name
+    config_name: str = args.config_name
 
     # load config
-    config_path = MODEL_CONFIG_DIR / f"{config_name}.yaml"
+    config_path: Path = MODEL_CONFIG_DIR / f"{config_name}.yaml"
     if not config_path.exists():
         raise ValueError(f"Config file: {config_name} does not exist")
 
@@ -198,6 +206,7 @@ if __name__ == "__main__":
     eval_bench_db = eval_bench_dbs[0]
     feat_diff = config["features_diff"]
     target_diff = config["targets_diff"]
+    logger = get_logger()
 
     for train_bench_db in train_bench_dbs:
         if train_bench_db not in BENCH_DBS:

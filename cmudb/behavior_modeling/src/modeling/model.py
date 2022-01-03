@@ -1,9 +1,11 @@
 # /usr/bin/env python3
 
 import pickle
+from typing import Any
 
 import numpy as np
 from lightgbm import LGBMRegressor
+from numpy.typing import NDArray
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import (
     ElasticNet,
@@ -18,10 +20,10 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import RobustScaler, StandardScaler
 from sklearn.tree import DecisionTreeRegressor
 
-from src.config import METHODS, MODEL_DIR
+from src import METHODS, MODEL_DIR
 
 
-def get_model(method, config):
+def get_model(method: str, config: dict[str, Any]) -> Any:
     if method not in METHODS:
         raise ValueError(f"Unknown method: {method}")
 
@@ -73,7 +75,9 @@ def get_model(method, config):
 
 
 class BehaviorModel:
-    def __init__(self, method, ou_name, timestamp, config, features, targets):
+    def __init__(
+        self, method: str, ou_name: str, timestamp: str, config: dict[str, Any], features: list[str], targets: list[str]
+    ):
         """
         :param method: which ML method to use
         :param normalize: whether to perform standard normalization on data (both x and y)
@@ -92,7 +96,7 @@ class BehaviorModel:
         self.xscaler = RobustScaler() if config["robust"] else StandardScaler()
         self.yscaler = RobustScaler() if config["robust"] else StandardScaler()
 
-    def train(self, x, y):
+    def train(self, x: NDArray[np.float32], y: NDArray[np.float32]) -> None:
         if self.log_transform:
             x = np.log(x + self.eps)
             y = np.log(y + self.eps)
@@ -103,7 +107,7 @@ class BehaviorModel:
 
         self.model.fit(x, y)
 
-    def predict(self, x):
+    def predict(self, x: NDArray[np.float32]) -> NDArray[np.float32]:
         # transform the features
         if self.log_transform:
             x = np.log(x + self.eps)
@@ -111,7 +115,7 @@ class BehaviorModel:
             x = self.xscaler.transform(x)
 
         # make prediction
-        y = self.model.predict(x)
+        y: NDArray[np.float32] = self.model.predict(x)
 
         # transform the y back
         if self.normalize:
@@ -122,7 +126,7 @@ class BehaviorModel:
 
         return y
 
-    def save(self):
+    def save(self) -> None:
         model_dir = MODEL_DIR / self.timestamp / self.method / self.ou_name
         with open(model_dir / f"{self.method}_{self.ou_name}.pkl", "wb") as f:
             pickle.dump(self.model, f)

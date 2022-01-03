@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from subprocess import Popen
+from typing import Any, Optional
 
 import psutil
 import yaml
@@ -25,7 +26,7 @@ from src import (
 )
 
 
-def build_pg():
+def build_pg() -> None:
     """Build Postgres (and extensions)"""
 
     try:
@@ -38,7 +39,7 @@ def build_pg():
         cleanup(err, terminate=True, message="Error building postgres")
 
 
-def check_orphans():
+def check_orphans() -> None:
     """Check for TScout and Postgres processes from prior runs, as they cause the runner to fail.
 
     This will throw an error if it finds *any* postgres processes.
@@ -60,7 +61,7 @@ def check_orphans():
     assert len(tscout_procs) == 0, f"Found active tscout processes from previous runs: {tscout_procs}"
 
 
-def init_pg(auto_explain, stat_statements, store_plans):
+def init_pg(auto_explain: bool, stat_statements: bool, store_plans: bool) -> None:
     try:
         os.chdir(PG_DIR)
 
@@ -120,7 +121,7 @@ def init_pg(auto_explain, stat_statements, store_plans):
         cleanup(err, terminate=True, message="Error initializing Postgres")
 
 
-def pg_analyze(bench_db):
+def pg_analyze(bench_db: str) -> None:
     try:
         os.chdir(PG_DIR)
 
@@ -137,7 +138,7 @@ def pg_analyze(bench_db):
         cleanup(err, terminate=True, message="Error analyzing Postgres")
 
 
-def pg_prewarm(bench_db):
+def pg_prewarm(bench_db: str) -> None:
     """Prewarm Postgres so the buffer pool and OS page cache has the workload data available"""
 
     try:
@@ -160,7 +161,7 @@ def pg_prewarm(bench_db):
         cleanup(err, terminate=True, message="Error prewarming Postgres")
 
 
-def init_tscout(results_dir):
+def init_tscout(results_dir: Path) -> Popen[bytes]:
     try:
         os.chdir(TSCOUT_DIR)
 
@@ -179,7 +180,7 @@ def init_tscout(results_dir):
     return tscout_proc
 
 
-def build_benchbase(benchbase_dir):
+def build_benchbase(benchbase_dir: Path) -> None:
     get_logger().info("Building Benchbase")
 
     try:
@@ -193,7 +194,7 @@ def build_benchbase(benchbase_dir):
         cleanup(err, terminate=True, message="Error building benchbase")
 
 
-def init_benchbase(bench_db, benchbase_results_dir):
+def init_benchbase(bench_db: str, benchbase_results_dir: Path) -> None:
     """Initialize Benchbase and load benchmark data"""
     logger = get_logger()
 
@@ -221,7 +222,7 @@ def init_benchbase(bench_db, benchbase_results_dir):
         cleanup(err, terminate=True, message="Error initializing Benchbase")
 
 
-def exec_benchbase(bench_db, results_dir, benchbase_results_dir, config):
+def exec_benchbase(bench_db: str, results_dir: Path, benchbase_results_dir: Path, config: dict[str, Any]) -> None:
     psql_path = PG_DIR / "./build/bin/psql"
 
     try:
@@ -269,7 +270,7 @@ def exec_benchbase(bench_db, results_dir, benchbase_results_dir, config):
         cleanup(err, terminate=True, message="Error running Benchbase")
 
 
-def cleanup(err, terminate, message=""):
+def cleanup(err: Optional[Exception], terminate: bool, message: str = "") -> None:
     """Clean up the TScout and Postgres processes after either a successful or failed run"""
 
     logger = get_logger()
@@ -289,7 +290,7 @@ def cleanup(err, terminate, message=""):
         exit(1)
 
 
-def exec_sqlsmith(bench_db):
+def exec_sqlsmith(bench_db: str) -> None:
 
     try:
         os.chdir(PG_DIR)
@@ -320,7 +321,7 @@ def exec_sqlsmith(bench_db):
         cleanup(err, terminate=True, message="Error running SQLSmith")
 
 
-def run(bench_db, results_dir, benchbase_results_dir, config):
+def run(bench_db: str, results_dir: Path, benchbase_results_dir: Path, config: dict[str, Any]) -> None:
     """Run an experiment"""
     assert results_dir.exists(), f"Results directory does not exist: {results_dir}"
 
@@ -344,7 +345,7 @@ def run(bench_db, results_dir, benchbase_results_dir, config):
         pg_prewarm(bench_db)
 
     tscout_proc = init_tscout(results_dir)
-    exec_benchbase(bench_db, benchbase_results_dir)
+    exec_benchbase(bench_db, results_dir, benchbase_results_dir, config)
 
     log_fps = list((PG_DIR / "data/log").glob("*.log"))
     assert len(log_fps) == 1, f"Expected 1 Postgres log file, found {len(log_fps)}, {log_fps}"
@@ -357,7 +358,7 @@ def run(bench_db, results_dir, benchbase_results_dir, config):
     tscout_proc.wait()
 
 
-def main(config_name):
+def main(config_name: str) -> None:
     # Load datagen config
     config_path = BEHAVIOR_MODELING_DIR / f"config/datagen/{config_name}.yaml"
     config = yaml.load(open(config_path, "r"), Loader=yaml.FullLoader)

@@ -3,9 +3,10 @@
 import argparse
 import pickle
 from pathlib import Path
+from typing import Any
 
 
-def load_models():
+def load_models() -> Any:
     models_root = Path("./models")
 
     if not models_root.exists():
@@ -16,7 +17,7 @@ def load_models():
         raise ValueError(f"No models in models_root: {models_root}")
 
     model_base_dir = models[0]
-    model_dir = model_base_dir.iterdir()[0]
+    model_dir: Path = list(model_base_dir.iterdir())[0]
     ou_to_model = dict()
 
     for ou_model_dir in model_dir.iterdir():
@@ -25,11 +26,11 @@ def load_models():
         if len(model_pickle) > 1:
             raise ValueError(f"Found more than 1 model pickle in ou_model_dir: {ou_model_dir}")
 
-        model_pickle = model_pickle[0]
+        first_model: Path = model_pickle[0]
 
-        with open(model_pickle, "r") as f:
-            print(f"loading model pickle: {model_pickle}")
-            ou_to_model[ou_name] = pickle.load(f)
+        with first_model.open("r") as f:
+            print(f"loading model pickle: {first_model}")
+            ou_to_model[ou_name] = pickle.load(f)  # type: ignore
 
     return ou_to_model
 

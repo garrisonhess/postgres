@@ -7,7 +7,7 @@ from pathlib import Path
 import psutil
 
 
-def kill_tscout_and_postgres():
+def kill_tscout_and_postgres() -> None:
     print("Shutting down TScout and Postgres")
     tscout_process_names = ["TScout Coordinator", "TScout Processor", "TScout Collector"]
 
@@ -29,9 +29,9 @@ def kill_tscout_and_postgres():
         print(f"Error shutting down TScout and Postgres: {err}")
 
 
-def chown_results(username):
+def chown_results(username: str) -> None:
     # change the tscout results ownership to the user who ran the benchmark
-    results_dir = f"/home/{username}/postgres/cmudb/behavior_modeling/training_data/"
+    results_dir = f"/home/{username}/postgres/cmudb/behavior_modeling/data/training_data/"
     print(f"Changing ownership of TScout results from root to user: {username}")
     shutil.chown(results_dir, user=username)
     for file in Path(results_dir).glob("**/*"):
