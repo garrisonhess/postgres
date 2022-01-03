@@ -42,7 +42,7 @@ warn_unreachable = true
 
 [tool.pylint.master]
 jobs = 4
-good-names = ["i", "j", "k", "v", "e", "df", "f", "fp"]
+good-names = ["i", "j", "k", "v", "e", "df", "f", "fp", "X", "x", "y"]
 
 [tool.pylint.format]
 max-line-length=120

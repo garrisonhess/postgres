@@ -1,5 +1,6 @@
 import os
 import shutil
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -35,7 +36,7 @@ def build_pg() -> None:
         Popen(["make clean -s"], shell=True).wait()
         Popen(args=["make -j world-bin -s"], shell=True).wait()
         Popen(args=["make install-world-bin -j -s"], shell=True).wait()
-    except Exception as err:
+    except RuntimeError as err:
         cleanup(err, terminate=True, message="Error building postgres")
 
 
@@ -54,7 +55,7 @@ def check_orphans() -> None:
         if "postgres" in proc_name:
             pg_procs.append(proc)
 
-        if any([tscout_process_name in proc.info["name"] for tscout_process_name in tscout_process_names]):
+        if any((tscout_process_name in proc.info["name"] for tscout_process_name in tscout_process_names)):
             tscout_procs.append(proc)
 
     assert len(pg_procs) == 0, f"Found active postgres processes from previous runs: {pg_procs}"
@@ -117,7 +118,7 @@ def init_pg(auto_explain: bool, stat_statements: bool, store_plans: bool) -> Non
             shell=True,
         ).wait()
 
-    except Exception as err:
+    except RuntimeError as err:
         cleanup(err, terminate=True, message="Error initializing Postgres")
 
 
@@ -125,16 +126,16 @@ def pg_analyze(bench_db: str) -> None:
     try:
         os.chdir(PG_DIR)
 
-        if bench_db not in BENCH_TABLES.keys():
+        if bench_db not in BENCH_TABLES:
             raise ValueError(f"Benchmark {bench_db} doesn't have tables setup yet.")
 
         for table in BENCH_TABLES[bench_db]:
-            get_logger().info(f"Analyzing table: {table}")
+            get_logger().info("Analyzing table: %s", table)
             Popen(
                 args=[f"""./build/bin/psql -d benchbase -c 'ANALYZE VERBOSE {table};'"""],
                 shell=True,
             ).wait()
-    except Exception as err:
+    except RuntimeError as err:
         cleanup(err, terminate=True, message="Error analyzing Postgres")
 
 
@@ -148,16 +149,16 @@ def pg_prewarm(bench_db: str) -> None:
             shell=True,
         ).wait()
 
-        if bench_db not in BENCH_TABLES.keys():
+        if bench_db not in BENCH_TABLES:
             raise ValueError(f"Benchmark {bench_db} doesn't have prewarm tables setup yet.")
 
         for table in BENCH_TABLES[bench_db]:
-            get_logger().info(f"Prewarming table: {table}")
+            get_logger().info("Prewarming table: %s", table)
             Popen(
                 args=[f"""./build/bin/psql -d benchbase -c "select * from pg_prewarm('{table}')";"""],
                 shell=True,
             ).wait()
-    except Exception as err:
+    except RuntimeError as err:
         cleanup(err, terminate=True, message="Error prewarming Postgres")
 
 
@@ -173,7 +174,7 @@ def init_tscout(results_dir: Path) -> Popen[bytes]:
             args=[f"sudo python3 tscout.py `pgrep -ox postgres` --outdir {tscout_results_dir} &"],
             shell=True,
         )
-    except Exception as err:
+    except RuntimeError as err:
         cleanup(err, terminate=True, message="Error initializing TScout")
 
     time.sleep(1)  # allows tscout to attach before Benchbase execution begins
@@ -190,7 +191,7 @@ def build_benchbase(benchbase_dir: Path) -> None:
         # TODO: resolve this in a cleaner way
         if not os.path.exists(BENCHBASE_SNAPSHOT_DIR):
             Popen(args=[f"unzip {BENCHBASE_SNAPSHOT_PATH}"], shell=True).wait()
-    except Exception as err:
+    except RuntimeError as err:
         cleanup(err, terminate=True, message="Error building benchbase")
 
 
@@ -210,15 +211,15 @@ def init_benchbase(bench_db: str, benchbase_results_dir: Path) -> None:
         shutil.copy(input_cfg_path, benchbase_cfg_path)
         shutil.copy(input_cfg_path, benchbase_results_dir)
 
-        logger.info(f"Initializing Benchbase for DB: {bench_db}")
+        logger.info("Initializing Benchbase for DB: %s", bench_db)
 
         benchbase_cmd = f"java -jar benchbase.jar -b {bench_db} -c config/postgres/{bench_db}_config.xml --create=true --load=true --execute=false"
         bbase_proc = Popen(args=[benchbase_cmd], shell=True)
         bbase_proc.wait()
         if bbase_proc.returncode != 0:
             raise RuntimeError(f"Benchbase failed with return code: {bbase_proc.returncode}")
-        logger.info(f"Initialized Benchbase for Benchmark: {bench_db}")
-    except Exception as err:
+        logger.info("Initialized Benchbase for Benchmark: %s", bench_db)
+    except RuntimeError as err:
         cleanup(err, terminate=True, message="Error initializing Benchbase")
 
 
@@ -245,7 +246,7 @@ def exec_benchbase(bench_db: str, results_dir: Path, benchbase_results_dir: Path
             raise RuntimeError(f"Benchbase failed with return code: {bbase_proc.returncode}")
 
         if config["pg_stat_statements"]:
-            with open(results_dir / "stat_file.csv", "w") as stat_file:
+            with (results_dir / "stat_file.csv").open("w") as stat_file:
                 Popen(
                     args=[f'''{psql_path} -d 'benchbase' --csv -c "SELECT * FROM pg_stat_statements;"'''],
                     shell=True,
@@ -254,7 +255,7 @@ def exec_benchbase(bench_db: str, results_dir: Path, benchbase_results_dir: Path
                 ).wait()
         if config["pg_store_plans"]:
             plans_query = """SELECT queryid, planid, plan FROM pg_store_plans ORDER BY queryid, planid"""
-            with open(results_dir / "plan_file.csv", "w") as stat_file:
+            with (results_dir / "plan_file.csv").open("w") as stat_file:
                 Popen(
                     args=[f'''{psql_path} -d 'benchbase' --csv -c "{plans_query}"'''],
                     shell=True,
@@ -263,14 +264,14 @@ def exec_benchbase(bench_db: str, results_dir: Path, benchbase_results_dir: Path
                 ).wait()
 
         # Move benchbase results to experiment results directory
-        shutil.move(str(BENCHBASE_SNAPSHOT_DIR / "results"), str(benchbase_results_dir))
+        shutil.move(BENCHBASE_SNAPSHOT_DIR / "results", benchbase_results_dir)
         time.sleep(5)  # Allow TScout Collector to finish getting results
 
-    except Exception as err:
+    except RuntimeError as err:
         cleanup(err, terminate=True, message="Error running Benchbase")
 
 
-def cleanup(err: Optional[Exception], terminate: bool, message: str = "") -> None:
+def cleanup(err: Optional[RuntimeError], terminate: bool, message: str = "") -> None:
     """Clean up the TScout and Postgres processes after either a successful or failed run"""
 
     logger = get_logger()
@@ -279,7 +280,7 @@ def cleanup(err: Optional[Exception], terminate: bool, message: str = "") -> Non
         logger.error(message)
 
     if err is not None:
-        logger.error(f"Error: {err}")
+        logger.error("Error: %s", err)
 
     username = psutil.Process().username()
     Popen(args=[f"sudo python3 {CLEANUP_SCRIPT_PATH} --username {username}"], shell=True).wait()
@@ -287,7 +288,7 @@ def cleanup(err: Optional[Exception], terminate: bool, message: str = "") -> Non
 
     # Exit the program if the caller requested it (only happens on error)
     if terminate:
-        exit(1)
+        sys.exit(1)
 
 
 def exec_sqlsmith(bench_db: str) -> None:
@@ -295,18 +296,20 @@ def exec_sqlsmith(bench_db: str) -> None:
     try:
         os.chdir(PG_DIR)
         # Add SQLSmith user to benchbase DB with non-superuser privileges
-        Popen(
+
+        with Popen(
             args=[
                 '''./build/bin/psql -d benchbase -c "CREATE ROLE sqlsmith WITH PASSWORD 'password' INHERIT LOGIN;"'''
             ],
             shell=True,
-        ).wait()
+        ) as proc:
+            proc.wait()
 
-        if bench_db not in BENCH_TABLES.keys():
+        if bench_db not in BENCH_TABLES:
             raise ValueError(f"Benchmark {bench_db} doesn't have tables setup yet.")
 
         for table in BENCH_TABLES[bench_db]:
-            get_logger().info(f"Granting SQLSmith permissions on table: {table}")
+            get_logger().info("Granting SQLSmith permissions on table: %s", table)
             Popen(
                 args=[
                     f'''./build/bin/psql -d benchbase -c "GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO sqlsmith;"'''
@@ -317,7 +320,7 @@ def exec_sqlsmith(bench_db: str) -> None:
         os.chdir(SQLSMITH_DIR)
         sqlsmith_cmd = """./sqlsmith --target="host=localhost port=5432 dbname=benchbase connect_timeout=10" --seed=42 --max-queries=10000 --exclude-catalog"""
         Popen(args=[sqlsmith_cmd], shell=True).wait()
-    except Exception as err:
+    except RuntimeError as err:
         cleanup(err, terminate=True, message="Error running SQLSmith")
 
 
@@ -359,9 +362,9 @@ def run(bench_db: str, results_dir: Path, benchbase_results_dir: Path, config: d
 
 
 def main(config_name: str) -> None:
-    # Load datagen config
     config_path = BEHAVIOR_MODELING_DIR / f"config/datagen/{config_name}.yaml"
-    config = yaml.load(open(config_path, "r"), Loader=yaml.FullLoader)
+    with config_path.open("r") as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
     logger = get_logger()
 
     # validate the benchmark databases from the config
@@ -393,6 +396,6 @@ def main(config_name: str) -> None:
             benchbase_results_dir = results_dir / "benchbase"
             Path(benchbase_results_dir).mkdir(exist_ok=True)
             logger.info(
-                f"Running experiment: {experiment_name} with bench_db: {bench_db} and results_dir: {results_dir}"
+                "Running experiment: %s with bench_db: %s and results_dir: %s", experiment_name, bench_db, results_dir
             )
             run(bench_db, results_dir, benchbase_results_dir, config)

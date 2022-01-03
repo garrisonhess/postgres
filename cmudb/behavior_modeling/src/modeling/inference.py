@@ -18,7 +18,7 @@ def load_models() -> Any:
 
     model_base_dir = models[0]
     model_dir: Path = list(model_base_dir.iterdir())[0]
-    ou_to_model = dict()
+    ou_to_model = {}
 
     for ou_model_dir in model_dir.iterdir():
         ou_name = ou_model_dir.stem
@@ -39,15 +39,19 @@ def load_models() -> Any:
 # 1. Load models
 # 2. Load data
 # 3. Run inference and write to disk
-if __name__ == "__main__":
+def main() -> None:
     parser = argparse.ArgumentParser(description="OU Model Inference Runner")
     parser.add_argument("--output_dir", type=str, default="./inference_results/")
     parser.add_argument("--input_dir", type=str, default="./training_data/")
-    args = parser.parse_args()
+    # args = parser.parse_args()
 
-    indir = Path(args.input_dir)
-    outdir = Path(args.output_dir)
+    # indir = Path(args.input_dir)
+    # outdir = Path(args.output_dir)
 
-    ou_to_model = load_models()
+    # ou_to_model = load_models()
     # data = load_data()
     # infer(ou_to_model, data)
+
+
+if __name__ == "__main__":
+    main()

@@ -4,4 +4,4 @@ black .
 isort .
 flake8 .
 mypy .
-pylint .
+pylint src

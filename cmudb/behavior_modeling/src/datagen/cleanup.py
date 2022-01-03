@@ -19,13 +19,13 @@ def kill_tscout_and_postgres() -> None:
                     proc.kill()
                 except (psutil.NoSuchProcess, psutil.ZombieProcess):
                     pass
-            elif any([tscout_process_name in proc.info["name"] for tscout_process_name in tscout_process_names]):
+            elif any((tscout_process_name in proc.info["name"] for tscout_process_name in tscout_process_names)):
                 try:
                     proc.kill()
                 except (psutil.NoSuchProcess, psutil.ZombieProcess):
                     pass
         print("Shutdown TScout and Postgres successfully")
-    except Exception as err:
+    except RuntimeError as err:
         print(f"Error shutting down TScout and Postgres: {err}")
 
 
