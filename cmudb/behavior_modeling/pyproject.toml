@@ -50,9 +50,6 @@ max-line-length=120
 # disable list taken from https://github.com/PyCQA/pylint/issues/617
 [tool.pylint.messages_control]
 disable = [
-    # temporary disables to fix
-    "import-error", 
-
     # Disable too many and too few checks.
     
     "too-many-ancestors",
@@ -69,17 +66,8 @@ disable = [
     "too-many-statements",
     "too-few-public-methods",
 
-    # let the formatters handle this
+    # Let the formatters handle this
     "line-too-long",
-
-    # Similar lines in files (often the case in tests).
-    "duplicate-code",
-
-    # Many functions (e.g. callbacks) will naturally have unused arguments.
-    "unused-argument",
-
-    # Disable checking that method could be a function in classes (often used for organisation).
-    "no-self-use",
 
     # Disable failure for TODO items in the codebase (code will always have TODOs).
     "fixme",

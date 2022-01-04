@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import argparse
 import itertools
 import os
@@ -11,7 +9,6 @@ import numpy as np
 import pandas as pd
 import pydotplus
 import yaml
-from model import BehaviorModel
 from numpy.typing import NDArray
 from pandas import DataFrame
 from sklearn import tree
@@ -23,7 +20,10 @@ from sklearn.metrics import (
 )
 
 from src import (
+    ALL_TARGET_COLS,
+    BASE_TARGET_COLS,
     BENCH_DBS,
+    DIFF_TARGET_COLS,
     EVAL_DATA_ROOT,
     LEAF_NODES,
     MODEL_CONFIG_DIR,
@@ -32,36 +32,7 @@ from src import (
     TRAIN_DATA_ROOT,
     get_logger,
 )
-
-BASE_TARGET_COLS = [
-    "cpu_cycles",
-    "instructions",
-    "cache_references",
-    "cache_misses",
-    "ref_cpu_cycles",
-    "network_bytes_read",
-    "network_bytes_written",
-    "disk_bytes_read",
-    "disk_bytes_written",
-    "memory_bytes",
-    "elapsed_us",
-]
-
-DIFF_TARGET_COLS = [
-    "diffed_cpu_cycles",
-    "diffed_instructions",
-    "diffed_cache_references",
-    "diffed_cache_misses",
-    "diffed_ref_cpu_cycles",
-    "diffed_network_bytes_read",
-    "diffed_network_bytes_written",
-    "diffed_disk_bytes_read",
-    "diffed_disk_bytes_written",
-    "diffed_memory_bytes",
-    "diffed_elapsed_us",
-]
-
-ALL_TARGET_COLS = BASE_TARGET_COLS + DIFF_TARGET_COLS
+from src.modeling.model import BehaviorModel
 
 
 def evaluate(
@@ -73,20 +44,20 @@ def evaluate(
     y_pred = ou_model.predict(X)
 
     # pair and reorder the target columns for readable outputs
-    paired_cols = zip([f"pred_{col}" for col in ou_model.target_cols], ou_model.target_cols)
-    reordered_cols = ou_model.feat_cols + list(itertools.chain.from_iterable(paired_cols))
+    paired_cols = zip([f"pred_{col}" for col in ou_model.targets], ou_model.targets)
+    reordered_cols = ou_model.features + list(itertools.chain.from_iterable(paired_cols))
 
     preds_path = output_dir / f"{ou_model.ou_name}_{ou_model.method}_{dataset}_{mode}_preds.csv"
     with preds_path.open("w+") as preds_file:
         temp: NDArray[Any] = np.concatenate((X, y, y_pred), axis=1)  # type: ignore
         test_result_df = pd.DataFrame(
-            temp, columns=ou_model.feat_cols + ou_model.target_cols + [f"pred_{col}" for col in ou_model.target_cols]
+            temp, columns=ou_model.features + ou_model.targets + [f"pred_{col}" for col in ou_model.targets]
         )
         test_result_df[reordered_cols].to_csv(preds_file, float_format="%.1f", index=False)
 
     if ou_model.method == "dt" and mode == "train":
-        for idx, target_name in enumerate(ou_model.target_cols):
-            dot = tree.export_graphviz(ou_model.model.estimators_[idx], feature_names=ou_model.feat_cols, filled=True)
+        for idx, target_name in enumerate(ou_model.targets):
+            dot = tree.export_graphviz(ou_model.model.estimators_[idx], feature_names=ou_model.features, filled=True)
             dt_file = f"{output_dir}/{ou_model.ou_name}_{mode}_treeplot_{target_name}.png"
             pydotplus.graphviz.graph_from_dot_data(dot).write_png(dt_file)
 
@@ -95,11 +66,11 @@ def evaluate(
         eval_file.write(
             f"\n============= {mode.title()}: Model Summary for {ou_model.ou_name} Model: {ou_model.method} =============\n"
         )
-        eval_file.write(f"Features used: {ou_model.feat_cols}\n")
-        eval_file.write(f"Num Features used: {len(ou_model.feat_cols)}\n")
-        eval_file.write(f"Targets estimated: {ou_model.target_cols}\n")
+        eval_file.write(f"Features used: {ou_model.features}\n")
+        eval_file.write(f"Num Features used: {len(ou_model.features)}\n")
+        eval_file.write(f"Targets estimated: {ou_model.targets}\n")
 
-        for target_idx, target in enumerate(ou_model.target_cols):
+        for target_idx, target in enumerate(ou_model.targets):
             eval_file.write(f"===== Target: {target} =====\n")
             target_pred = y_pred[:, target_idx]
             target_true = y[:, target_idx]

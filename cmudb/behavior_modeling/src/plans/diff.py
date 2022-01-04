@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import os
 import shutil
 import uuid
@@ -11,12 +9,18 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from pandas import DataFrame, Index
-from plan import PlanTree, get_plan_trees
 from tqdm import tqdm
 
-from src import BENCH_DBS, DATA_ROOT, LEAF_NODES, TRAIN_DATA_ROOT
-
-from . import COMMON_SCHEMA, DIFF_COLS, REMAP_SCHEMA
+from src import (
+    BENCH_DBS,
+    COMMON_SCHEMA,
+    DATA_ROOT,
+    DIFF_COLS,
+    LEAF_NODES,
+    PLAN_SCHEMA,
+    TRAIN_DATA_ROOT,
+)
+from src.plans.plans import PlanTree, get_plan_trees
 
 
 def verify_invocation_ids(unified: DataFrame) -> None:
@@ -78,7 +82,7 @@ def load_tscout_data(tscout_data_dir: Path) -> tuple[list[DataFrame], DataFrame]
     for ou_name, df in ou_to_df.items():
         mapper: dict[str, str] = {}
         for col in df.columns:
-            for mapper_value in REMAP_SCHEMA:
+            for mapper_value in PLAN_SCHEMA:
                 if mapper_value in col:
                     mapper[col] = mapper_value
         df = df.rename(columns=mapper)

@@ -2,6 +2,24 @@ import logging
 from logging import Logger
 from pathlib import Path
 
+PG_DIR = Path.home() / "postgres"
+CMUDB_DIR = PG_DIR / "cmudb"
+TSCOUT_DIR = CMUDB_DIR / "tscout"
+BENCHBASE_DIR = Path.home() / "benchbase"
+BENCHBASE_SNAPSHOT_DIR = BENCHBASE_DIR / "benchbase-2021-SNAPSHOT"
+BENCHBASE_SNAPSHOT_PATH = BENCHBASE_DIR / "target" / "benchbase-2021-SNAPSHOT.zip"
+BEHAVIOR_MODELING_DIR = CMUDB_DIR / "behavior_modeling"
+PG_CONF_PATH = BEHAVIOR_MODELING_DIR / "config/datagen/postgres/postgresql.conf"
+CLEANUP_SCRIPT_PATH = BEHAVIOR_MODELING_DIR / "src/datagen/cleanup.py"
+SQLSMITH_DIR = Path.home() / "sqlsmith"
+DATA_ROOT = Path.home() / "postgres/cmudb/behavior_modeling/data/training_data"
+MODELING_DIR = Path.home() / "postgres/cmudb/behavior_modeling"
+MODEL_CONFIG_DIR = MODELING_DIR / "config" / "modeling"
+MODEL_DIR = MODELING_DIR / "/data/models"
+TRAIN_DATA_ROOT = DATA_ROOT / "/data/train"
+EVAL_DATA_ROOT = DATA_ROOT / "/data/eval"
+
+
 BENCH_DBS = [
     "tpcc",
     "tpch",
@@ -161,23 +179,89 @@ METHODS = [
 ]
 
 
-PG_DIR = Path.home() / "postgres"
-CMUDB_DIR = PG_DIR / "cmudb"
-TSCOUT_DIR = CMUDB_DIR / "tscout"
-BENCHBASE_DIR = Path.home() / "benchbase"
-BENCHBASE_SNAPSHOT_DIR = BENCHBASE_DIR / "benchbase-2021-SNAPSHOT"
-BENCHBASE_SNAPSHOT_PATH = BENCHBASE_DIR / "target" / "benchbase-2021-SNAPSHOT.zip"
-BEHAVIOR_MODELING_DIR = CMUDB_DIR / "behavior_modeling"
-PG_CONF_PATH = BEHAVIOR_MODELING_DIR / "config/datagen/postgres/postgresql.conf"
-CLEANUP_SCRIPT_PATH = BEHAVIOR_MODELING_DIR / "src/datagen/cleanup.py"
-SQLSMITH_DIR = Path.home() / "sqlsmith"
-DATA_ROOT = Path.home() / "postgres/cmudb/behavior_modeling/data/training_data"
-MODELING_DIR = Path.home() / "postgres/cmudb/behavior_modeling"
-MODEL_CONFIG_DIR = MODELING_DIR / "config" / "modeling"
-MODEL_DIR = MODELING_DIR / "/data/models"
-TRAIN_DATA_ROOT = DATA_ROOT / "/data/train"
-EVAL_DATA_ROOT = DATA_ROOT / "/data/eval"
 LEAF_NODES: set[str] = {"ExecIndexScan", "ExecSeqScan", "ExecIndexOnlyScan", "ExecResult"}
+
+
+BASE_TARGET_COLS = [
+    "cpu_cycles",
+    "instructions",
+    "cache_references",
+    "cache_misses",
+    "ref_cpu_cycles",
+    "network_bytes_read",
+    "network_bytes_written",
+    "disk_bytes_read",
+    "disk_bytes_written",
+    "memory_bytes",
+    "elapsed_us",
+]
+
+DIFF_TARGET_COLS = [
+    "diffed_cpu_cycles",
+    "diffed_instructions",
+    "diffed_cache_references",
+    "diffed_cache_misses",
+    "diffed_ref_cpu_cycles",
+    "diffed_network_bytes_read",
+    "diffed_network_bytes_written",
+    "diffed_disk_bytes_read",
+    "diffed_disk_bytes_written",
+    "diffed_memory_bytes",
+    "diffed_elapsed_us",
+]
+
+ALL_TARGET_COLS = BASE_TARGET_COLS + DIFF_TARGET_COLS
+
+COMMON_SCHEMA: list[str] = [
+    "rid",
+    "query_id",
+    "ou_name",
+    "plan_startup_cost",
+    "plan_total_cost",
+    "plan_type",
+    "plan_rows",
+    "plan_width",
+    "plan_node_id",
+    "start_time",
+    "end_time",
+    "elapsed_us",
+    "cpu_id",
+    "cpu_cycles",
+    "instructions",
+    "cache_references",
+    "cache_misses",
+    "ref_cpu_cycles",
+    "network_bytes_read",
+    "network_bytes_written",
+    "disk_bytes_read",
+    "disk_bytes_written",
+    "memory_bytes",
+]
+
+PLAN_SCHEMA: list[str] = [
+    "plan_startup_cost",
+    "plan_total_cost",
+    "plan_type",
+    "plan_rows",
+    "plan_width",
+    "plan_node_id",
+]
+
+DIFF_COLS: list[str] = [
+    "plan_startup_cost",
+    "plan_total_cost",
+    "elapsed_us",
+    "cpu_cycles",
+    "instructions",
+    "cache_references",
+    "cache_misses",
+    "ref_cpu_cycles",
+    "network_bytes_read",
+    "network_bytes_written",
+    "disk_bytes_read",
+    "disk_bytes_written",
+    "memory_bytes",
+]
 
 
 def get_logger() -> Logger:

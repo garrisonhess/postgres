@@ -1,7 +1,7 @@
-build_pg: False
-build_bbase: False
+build_pg: True
+build_bbase: True
 pg_prewarm: True
-pg_stat_statements: False
+pg_stat_statements: True
 pg_store_plans: True
 auto_explain: False
 bench_dbs: [tpcc]

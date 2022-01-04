@@ -18,6 +18,7 @@ setup(
         "flake8",
         "pylint",
         "mypy",
+        "plumbum",
     ],
     python_requires=">=3.9",
 )

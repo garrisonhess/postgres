@@ -1,4 +1,8 @@
+# allow plumbum FG statements
+# pylint: disable=pointless-statement
+
 import os
+import shlex
 import shutil
 import sys
 import time
@@ -9,6 +13,8 @@ from typing import Any, Optional
 
 import psutil
 import yaml
+from plumbum import FG, local
+from plumbum.cmd import bash, make, sudo  # pylint: disable=import-error
 
 from src import (
     BEHAVIOR_MODELING_DIR,
@@ -32,10 +38,10 @@ def build_pg() -> None:
 
     try:
         os.chdir(PG_DIR)
-        Popen(args=["./cmudb/build/configure.sh release"], shell=True).wait()
-        Popen(["make clean -s"], shell=True).wait()
-        Popen(args=["make -j world-bin -s"], shell=True).wait()
-        Popen(args=["make install-world-bin -j -s"], shell=True).wait()
+        bash["./cmudb/build/configure.sh", "release"] & FG
+        make["clean", "-s"]()
+        make["-j", "world-bin", "-s"]()
+        make["install-world-bin", "-j", "-s"]()
     except RuntimeError as err:
         cleanup(err, terminate=True, message="Error building postgres")
 
@@ -70,53 +76,50 @@ def init_pg(auto_explain: bool, stat_statements: bool, store_plans: bool) -> Non
         shutil.rmtree("data")
 
         Path("data").mkdir(parents=True, exist_ok=True)
-        Popen(args=["./build/bin/pg_ctl initdb -D data"], shell=True).wait()
+        bash["./build/bin/pg_ctl", "initdb", "-D", "data"] & FG
         shutil.copy(str(PG_CONF_PATH), "./data/postgresql.conf")
 
-        Popen(
-            args=["""./build/bin/pg_ctl -D data -o "-W 2" start"""],
-            shell=True,
-        ).wait()
+        ctl_str = shlex.split("""./build/bin/pg_ctl -D data -o "-W 2" start""")
+        bash[ctl_str] & FG
 
         # Initialize the DB and create an admin user for Benchbase to use
-        Popen(args=["./build/bin/createdb test"], shell=True).wait()
-        Popen(
-            args=[
-                '''./build/bin/psql -d test -c "CREATE ROLE admin WITH PASSWORD 'password' SUPERUSER CREATEDB CREATEROLE INHERIT LOGIN;"'''
-            ],
-            shell=True,
-        ).wait()
-        Popen(args=["./build/bin/createdb -O admin benchbase"], shell=True).wait()
+        bash["./build/bin/createdb", "test"] & FG
+        role_cmd = shlex.split(
+            '''./build/bin/psql -d test -c "CREATE ROLE admin WITH PASSWORD 'password' SUPERUSER CREATEDB CREATEROLE INHERIT LOGIN;"'''
+        )
+        bash[role_cmd] & FG
+        bash["./build/bin/createdb", "-O", "admin", "benchbase"] & FG
 
         # Turn on QueryID computation
-        Popen(
-            args=['''./build/bin/psql -d test -c "ALTER DATABASE test SET compute_query_id = 'ON';"'''],
-            shell=True,
-        ).wait()
-        Popen(
-            args=['''./build/bin/psql -d benchbase -c "ALTER DATABASE benchbase SET compute_query_id = 'ON';"'''],
-            shell=True,
-        ).wait()
+        queryid_cmd1 = shlex.split('''./build/bin/psql -d test -c "ALTER DATABASE test SET compute_query_id = 'ON';"''')
+        bash[queryid_cmd1] & FG
+        queryid_cmd2 = shlex.split(
+            '''./build/bin/psql -d benchbase -c "ALTER DATABASE benchbase SET compute_query_id = 'ON';"'''
+        )
+        bash[queryid_cmd2] & FG
 
         if auto_explain:
-            Popen(
-                args=['''./build/bin/psql -d benchbase -c "ALTER SYSTEM SET auto_explain.log_min_duration = 0;"'''],
-                shell=True,
-            ).wait()
-            Popen(args=["""./build/bin/pg_ctl -D data reload"""], shell=True).wait()
+            auto_explain_cmd = shlex.split(
+                '''./build/bin/psql -d benchbase -c "ALTER SYSTEM SET auto_explain.log_min_duration = 0;"'''
+            )
+            bash[auto_explain_cmd] & FG
+            bash["./build/bin/pg_ctl", "-D", "data", "reload"] & FG
 
         if stat_statements:
-            Popen(
-                args=['''./build/bin/psql -d 'benchbase' -c "CREATE EXTENSION pg_stat_statements;"'''], shell=True
-            ).wait()
+            enable_stat_stmt = shlex.split(
+                '''./build/bin/psql -d 'benchbase' -c "CREATE EXTENSION pg_stat_statements;"'''
+            )
+            bash[enable_stat_stmt] & FG
+
         if store_plans:
-            Popen(args=['''./build/bin/psql -d 'benchbase' -c "CREATE EXTENSION pg_store_plans;"'''], shell=True).wait()
+            enable_store_plans = shlex.split(
+                '''./build/bin/psql -d 'benchbase' -c "CREATE EXTENSION pg_store_plans;"'''
+            )
+            bash[enable_store_plans] & FG
 
         # Turn off pager
-        Popen(
-            args=['''./build/bin/psql -d benchbase -P pager=off -c "SELECT 1;"'''],
-            shell=True,
-        ).wait()
+        disable_pager = shlex.split('''./build/bin/psql -d benchbase -P pager=off -c "SELECT 1;"''')
+        bash[disable_pager] & FG
 
     except RuntimeError as err:
         cleanup(err, terminate=True, message="Error initializing Postgres")
@@ -131,10 +134,8 @@ def pg_analyze(bench_db: str) -> None:
 
         for table in BENCH_TABLES[bench_db]:
             get_logger().info("Analyzing table: %s", table)
-            Popen(
-                args=[f"""./build/bin/psql -d benchbase -c 'ANALYZE VERBOSE {table};'"""],
-                shell=True,
-            ).wait()
+            analyze_cmd = shlex.split(f"""./build/bin/psql -d benchbase -c 'ANALYZE VERBOSE {table};'""")
+            bash[analyze_cmd] & FG
     except RuntimeError as err:
         cleanup(err, terminate=True, message="Error analyzing Postgres")
 
@@ -144,20 +145,16 @@ def pg_prewarm(bench_db: str) -> None:
 
     try:
         os.chdir(PG_DIR)
-        Popen(
-            args=['''./build/bin/psql -d benchbase -c "CREATE EXTENSION pg_prewarm"'''],
-            shell=True,
-        ).wait()
+        enable_prewarm = shlex.split('''./build/bin/psql -d benchbase -c "CREATE EXTENSION pg_prewarm"''')
+        bash[enable_prewarm] & FG
 
         if bench_db not in BENCH_TABLES:
             raise ValueError(f"Benchmark {bench_db} doesn't have prewarm tables setup yet.")
 
         for table in BENCH_TABLES[bench_db]:
             get_logger().info("Prewarming table: %s", table)
-            Popen(
-                args=[f"""./build/bin/psql -d benchbase -c "select * from pg_prewarm('{table}')";"""],
-                shell=True,
-            ).wait()
+            prewarm_cmd = shlex.split(f"""./build/bin/psql -d benchbase -c "select * from pg_prewarm('{table}')";""")
+            bash[prewarm_cmd] & FG
     except RuntimeError as err:
         cleanup(err, terminate=True, message="Error prewarming Postgres")
 
@@ -186,11 +183,9 @@ def build_benchbase(benchbase_dir: Path) -> None:
 
     try:
         os.chdir(benchbase_dir)
-        Popen(args=["./mvnw clean package"], shell=True).wait()
-
-        # TODO: resolve this in a cleaner way
+        bash["./mvnw", "clean", "package"] & FG
         if not os.path.exists(BENCHBASE_SNAPSHOT_DIR):
-            Popen(args=[f"unzip {BENCHBASE_SNAPSHOT_PATH}"], shell=True).wait()
+            local["unzip"][BENCHBASE_SNAPSHOT_PATH] & FG
     except RuntimeError as err:
         cleanup(err, terminate=True, message="Error building benchbase")
 
@@ -211,13 +206,20 @@ def init_benchbase(bench_db: str, benchbase_results_dir: Path) -> None:
         shutil.copy(input_cfg_path, benchbase_cfg_path)
         shutil.copy(input_cfg_path, benchbase_results_dir)
 
+        print("initializing benchbase")
         logger.info("Initializing Benchbase for DB: %s", bench_db)
-
-        benchbase_cmd = f"java -jar benchbase.jar -b {bench_db} -c config/postgres/{bench_db}_config.xml --create=true --load=true --execute=false"
-        bbase_proc = Popen(args=[benchbase_cmd], shell=True)
-        bbase_proc.wait()
-        if bbase_proc.returncode != 0:
-            raise RuntimeError(f"Benchbase failed with return code: {bbase_proc.returncode}")
+        benchbase_cmd = [
+            "-jar",
+            "benchbase.jar",
+            "-b",
+            bench_db,
+            "-c",
+            f"config/postgres/{bench_db}_config.xml",
+            "--create=true",
+            "--load=true",
+            "--execute=false",
+        ]
+        local["java"][benchbase_cmd] & FG
         logger.info("Initialized Benchbase for Benchmark: %s", bench_db)
     except RuntimeError as err:
         cleanup(err, terminate=True, message="Error initializing Benchbase")
@@ -233,40 +235,39 @@ def exec_benchbase(bench_db: str, results_dir: Path, benchbase_results_dir: Path
         os.chdir(BENCHBASE_SNAPSHOT_DIR)
 
         if config["pg_stat_statements"]:
-            Popen(args=[f'''{psql_path} -d 'benchbase' -c "SELECT pg_stat_statements_reset();"'''], shell=True).wait()
-
+            bash[psql_path, "-d", "'benchbase'", "-c", "SELECT pg_stat_statements_reset();"] & FG
         if config["pg_store_plans"]:
-            Popen(args=[f'''{psql_path} -d 'benchbase' -c "SELECT pg_store_plans_reset();"'''], shell=True).wait()
+            bash[psql_path, "-d", "'benchbase'", "-c", "SELECT pg_store_plans_reset();"] & FG
 
         # run benchbase
-        benchbase_cmd = f"java -jar benchbase.jar -b {bench_db} -c config/postgres/{bench_db}_config.xml --create=false --load=false --execute=true"
-        bbase_proc = Popen(args=[benchbase_cmd], shell=True)
-        bbase_proc.wait()
-        if bbase_proc.returncode != 0:
-            raise RuntimeError(f"Benchbase failed with return code: {bbase_proc.returncode}")
+        benchbase_cmd = [
+            "-jar",
+            "benchbase.jar",
+            "-b",
+            bench_db,
+            "-c",
+            f"config/postgres/{bench_db}_config.xml",
+            "--create=false",
+            "--load=false",
+            "--execute=true",
+        ]
+        local["java"](benchbase_cmd)
 
         if config["pg_stat_statements"]:
-            with (results_dir / "stat_file.csv").open("w") as stat_file:
-                Popen(
-                    args=[f'''{psql_path} -d 'benchbase' --csv -c "SELECT * FROM pg_stat_statements;"'''],
-                    shell=True,
-                    stdout=stat_file,
-                    stderr=stat_file,
-                ).wait()
+            with (results_dir / "stat_file.csv").open("w") as f:
+                stats_cmd = [psql_path, "-d", """'benchbase'""" "--csv", "-c", "SELECT * FROM pg_stat_statements;"]
+                stats_result = bash[stats_cmd]()
+                f.write(stats_result)
+
         if config["pg_store_plans"]:
-            plans_query = """SELECT queryid, planid, plan FROM pg_store_plans ORDER BY queryid, planid"""
-            with (results_dir / "plan_file.csv").open("w") as stat_file:
-                Popen(
-                    args=[f'''{psql_path} -d 'benchbase' --csv -c "{plans_query}"'''],
-                    shell=True,
-                    stdout=stat_file,
-                    stderr=stat_file,
-                ).wait()
+            with (results_dir / "plan_file.csv").open("w") as f:
+                plans_query = "SELECT queryid, planid, plan FROM pg_store_plans ORDER BY queryid, planid"
+                plans_result = bash[psql_path](["-d", "'benchbase'", "--csv", "-c", plans_query])
+                f.write(plans_result)
 
         # Move benchbase results to experiment results directory
         shutil.move(BENCHBASE_SNAPSHOT_DIR / "results", benchbase_results_dir)
         time.sleep(5)  # Allow TScout Collector to finish getting results
-
     except RuntimeError as err:
         cleanup(err, terminate=True, message="Error running Benchbase")
 
@@ -283,7 +284,7 @@ def cleanup(err: Optional[RuntimeError], terminate: bool, message: str = "") -> 
         logger.error("Error: %s", err)
 
     username = psutil.Process().username()
-    Popen(args=[f"sudo python3 {CLEANUP_SCRIPT_PATH} --username {username}"], shell=True).wait()
+    sudo[["python3", CLEANUP_SCRIPT_PATH, "--username", username]] & FG
     time.sleep(2)  # Allow TScout poison pills to propagate
 
     # Exit the program if the caller requested it (only happens on error)
@@ -297,29 +298,26 @@ def exec_sqlsmith(bench_db: str) -> None:
         os.chdir(PG_DIR)
         # Add SQLSmith user to benchbase DB with non-superuser privileges
 
-        with Popen(
-            args=[
-                '''./build/bin/psql -d benchbase -c "CREATE ROLE sqlsmith WITH PASSWORD 'password' INHERIT LOGIN;"'''
-            ],
-            shell=True,
-        ) as proc:
-            proc.wait()
+        role_cmd = shlex.split(
+            '''./build/bin/psql -d benchbase -c "CREATE ROLE sqlsmith WITH PASSWORD 'password' INHERIT LOGIN;"'''
+        )
+        bash[role_cmd] & FG
 
         if bench_db not in BENCH_TABLES:
             raise ValueError(f"Benchmark {bench_db} doesn't have tables setup yet.")
 
         for table in BENCH_TABLES[bench_db]:
             get_logger().info("Granting SQLSmith permissions on table: %s", table)
-            Popen(
-                args=[
-                    f'''./build/bin/psql -d benchbase -c "GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO sqlsmith;"'''
-                ],
-                shell=True,
-            ).wait()
+            perm_cmd = shlex.split(
+                f'''./build/bin/psql -d benchbase -c "GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO sqlsmith;"'''
+            )
+            bash[perm_cmd] & FG
 
         os.chdir(SQLSMITH_DIR)
-        sqlsmith_cmd = """./sqlsmith --target="host=localhost port=5432 dbname=benchbase connect_timeout=10" --seed=42 --max-queries=10000 --exclude-catalog"""
-        Popen(args=[sqlsmith_cmd], shell=True).wait()
+        sqlsmith_cmd = shlex.split(
+            """./sqlsmith --target="host=localhost port=5432 dbname=benchbase connect_timeout=10" --seed=42 --max-queries=10000 --exclude-catalog"""
+        )
+        bash[sqlsmith_cmd] & FG
     except RuntimeError as err:
         cleanup(err, terminate=True, message="Error running SQLSmith")
 
@@ -335,13 +333,15 @@ def run(bench_db: str, results_dir: Path, benchbase_results_dir: Path, config: d
 
     # reload config to make a new logfile
     os.chdir(PG_DIR)
-    Popen(args=["./build/bin/pg_ctl stop -D data -m smart"], shell=True).wait()
+    smart_shutdown = shlex.split("./build/bin/pg_ctl stop -D data -m smart")
+    bash[smart_shutdown] & FG
 
     # remove pre-existing logs
     for log_path in [fp for fp in (PG_DIR / "data/log").glob("*") if fp.suffix in ["csv", "log"]]:
         log_path.unlink()
 
-    Popen(args=["""./build/bin/pg_ctl -D data -o "-W 2" start"""], shell=True).wait()
+    ctl_cmd: list[str] = shlex.split("""./build/bin/pg_ctl -D data -o "-W 2" start""")
+    bash[ctl_cmd] & FG
 
     if config["pg_prewarm"]:
         pg_analyze(bench_db)
