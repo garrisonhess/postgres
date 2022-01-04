@@ -49,7 +49,3 @@ def main() -> None:
     # ou_to_model = load_models()
     # data = load_data()
     # infer(ou_to_model, data)
-
-
-if __name__ == "__main__":
-    main()

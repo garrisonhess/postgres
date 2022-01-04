@@ -1,5 +1,5 @@
-build_pg: True
-build_bbase: True
+build_pg: False
+build_bbase: False
 pg_prewarm: True
 pg_stat_statements: True
 pg_store_plans: True

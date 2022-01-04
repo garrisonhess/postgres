@@ -1,6 +1,6 @@
 #!/bin/bash
 
-black .
+black . --exclude=\.ipynb
 isort .
 flake8 .
 mypy .

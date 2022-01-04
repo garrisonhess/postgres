@@ -1,4 +1,3 @@
-import argparse
 import itertools
 import os
 from datetime import datetime
@@ -121,8 +120,7 @@ def prep_train_data(
         if df[col].nunique() == 1:
             cols_to_remove.append(col)
 
-    df = df.drop(cols_to_remove, axis=1)
-    df = df.sort_index(axis=1)
+    df = df.drop(cols_to_remove, axis=1).sort_index(axis=1)
 
     if len(cols_to_remove) > 0:
         logger = get_logger()
@@ -156,12 +154,7 @@ def prep_eval_data(
     return X, y
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="OU Model Trainer")
-    parser.add_argument("--config_name", type=str, default="default")
-    args = parser.parse_args()
-    config_name: str = args.config_name
-
+def main(config_name: str) -> None:
     # load config
     config_path: Path = MODEL_CONFIG_DIR / f"{config_name}.yaml"
     if not config_path.exists():
@@ -227,7 +220,3 @@ def main() -> None:
             evaluate(ou_model, x_train, y_train, full_outdir, train_bench_db, mode="train")
             x_eval, y_eval = prep_eval_data(eval_ou_to_df[ou_name], feat_cols, target_cols)
             evaluate(ou_model, x_eval, y_eval, full_outdir, eval_bench_db, mode="eval")
-
-
-if __name__ == "__main__":
-    main()
